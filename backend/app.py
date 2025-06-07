@@ -129,6 +129,32 @@ def get_users(current_user):
     
     return jsonify(users=safe_users)
 
+@app.route('/api/courses', methods=['GET'])
+@token_required
+def get_courses(current_user):
+    """Get all courses (protected route)"""
+    try:
+        courses = db.get_all_courses()
+        # Return courses with lesson count
+        courses_with_details = []
+        for course in courses:
+            lessons = db.get_lessons_by_course_id(course['course_id'])
+            course_data = {
+                'course_id': course.get('course_id'),
+                'course_name': course.get('course_name'),
+                'description': course.get('description'),
+                'total_hour': course.get('total_hour'),
+                'difficulty_level': course.get('difficulty_level'),
+                'status': course.get('status'),
+                'create_at': course.get('create_at'),
+                'lesson_count': len(lessons)
+            }
+            courses_with_details.append(course_data)
+        
+        return jsonify(courses=courses_with_details)
+    except Exception as e:
+        return jsonify(success=False, message=f"Error getting courses: {str(e)}"), 500
+
 @app.route('/api/init-db', methods=['POST'])
 def init_database():
     """Initialize database with sample data"""

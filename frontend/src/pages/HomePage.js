@@ -37,8 +37,8 @@ function HomePage() {
         <div className="navbar-menu">
           <div className="navbar-start">
             <div className="navbar-item"><input className="input is-rounded" type="search" placeholder="Search" style={{ width: 180 }} /></div>
-            <a className="navbar-item">Dashboard</a>
-            <a className="navbar-item">All Courses</a>
+            <a className="navbar-item is-active">Dashboard</a>
+            <a className="navbar-item" onClick={() => navigate('/courses')} style={{ cursor: 'pointer' }}>All Courses</a>
             <a className="navbar-item">Take a Quiz</a>
             <a className="navbar-item">About us</a>
           </div>
