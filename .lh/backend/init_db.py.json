@@ -1,0 +1,18 @@
+{
+    "sourceFile": "backend/init_db.py",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1749293865383,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1749293865383,
+            "name": "Commit-0",
+            "content": "#!/usr/bin/env python3\r\n\"\"\"\r\nDatabase initialization script for ChromaDB with sample user data.\r\nRun this script to initialize the database with sample users.\r\n\"\"\"\r\n\r\nfrom conn import db\r\n\r\ndef main():\r\n    print(\"Initializing ChromaDB database...\")\r\n    \r\n    # Initialize sample data\r\n    db.initialize_sample_data()\r\n    \r\n    print(\"\\nDatabase initialization completed!\")\r\n    print(\"Sample users created:\")\r\n    print(\"- admin@admin.com (password: admin)\")\r\n    print(\"- user1@example.com (password: password123)\")\r\n    print(\"- user2@example.com (password: password456)\")\r\n    \r\n    # Display all users\r\n    print(\"\\nAll users in database:\")\r\n    users = db.get_all_users()\r\n    for user in users:\r\n        print(f\"- {user['email']} ({user['username']}) - {user['full_name']}\")\r\n\r\nif __name__ == \"__main__\":\r\n    main() "
+        }
+    ]
+}

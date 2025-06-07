@@ -1,0 +1,18 @@
+{
+    "sourceFile": "backend/README.md",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1749293882639,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1749293882639,
+            "name": "Commit-0",
+            "content": "# Flask Authentication API with ChromaDB\r\n\r\nThis Flask application provides JWT-based authentication using ChromaDB as a persistent vector database for user management.\r\n\r\n## Features\r\n\r\n- JWT-based authentication\r\n- User registration and login\r\n- Password hashing with bcrypt\r\n- Persistent storage with ChromaDB\r\n- CORS enabled for frontend integration\r\n\r\n## Setup\r\n\r\n### 1. Install Dependencies\r\n\r\n```bash\r\npip install -r requirements.txt\r\n```\r\n\r\n### 2. Initialize Database\r\n\r\nRun the initialization script to create sample users:\r\n\r\n```bash\r\npython init_db.py\r\n```\r\n\r\nOr use the API endpoint:\r\n\r\n```bash\r\ncurl -X POST http://localhost:5000/api/init-db\r\n```\r\n\r\n### 3. Run the Application\r\n\r\n```bash\r\npython app.py\r\n```\r\n\r\nThe server will start on `http://localhost:5000`.\r\n\r\n## API Endpoints\r\n\r\n### Authentication\r\n\r\n- **POST** `/api/login` - User login\r\n  ```json\r\n  {\r\n    \"email\": \"admin@admin.com\",\r\n    \"password\": \"admin\"\r\n  }\r\n  ```\r\n\r\n- **POST** `/api/register` - User registration\r\n  ```json\r\n  {\r\n    \"username\": \"newuser\",\r\n    \"email\": \"user@example.com\",\r\n    \"password\": \"password123\",\r\n    \"full_name\": \"New User\"\r\n  }\r\n  ```\r\n\r\n- **POST** `/api/verify-token` - Verify JWT token (requires Authorization header)\r\n\r\n### Protected Routes\r\n\r\n- **GET** `/api/hello` - Hello message (requires authentication)\r\n- **GET** `/api/protected` - Protected route example\r\n- **GET** `/api/users` - Get all users (requires authentication)\r\n\r\n### Database Management\r\n\r\n- **POST** `/api/init-db` - Initialize database with sample data\r\n\r\n## Sample Users\r\n\r\nAfter running the initialization script, you can login with:\r\n\r\n- **Email**: `admin@admin.com`, **Password**: `admin`\r\n- **Email**: `user1@example.com`, **Password**: `password123`\r\n- **Email**: `user2@example.com`, **Password**: `password456`\r\n\r\n## Authentication Headers\r\n\r\nFor protected routes, include the JWT token in the Authorization header:\r\n\r\n```\r\nAuthorization: Bearer <your-jwt-token>\r\n```\r\n\r\n## Database Storage\r\n\r\nChromaDB data is persisted in the `./chroma_db` directory. The database will be automatically created when the application starts.\r\n\r\n## Environment Variables\r\n\r\n- `SECRET_KEY`: JWT secret key (default: 'your-secret-key-change-in-production')\r\n\r\n**Note**: Change the secret key in production! "
+        }
+    ]
+}
