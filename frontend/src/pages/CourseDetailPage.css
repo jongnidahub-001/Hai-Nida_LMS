@@ -1,0 +1,195 @@
+.course-detail-bg {
+  background: var(--light-grey);
+  min-height: 100vh;
+}
+
+.course-header-card {
+  background: var(--primary-white);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  color: var(--primary-black);
+}
+
+.course-progress-card {
+  background: var(--primary-white);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  color: var(--primary-black);
+}
+
+.course-lessons-card {
+  background: var(--primary-white);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  max-height: 600px;
+  overflow-y: auto;
+  color: var(--primary-black);
+}
+
+.course-content-card {
+  background: var(--primary-white);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  min-height: 600px;
+  color: var(--primary-black);
+}
+
+.lesson-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.lesson-item {
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.lesson-item:hover {
+  background-color: var(--accent-yellow);
+  border-color: var(--medium-grey);
+}
+
+.lesson-item.is-active {
+  background-color: var(--primary-yellow);
+  border-color: var(--primary-yellow);
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.2);
+}
+
+.lesson-item.is-active .has-text-weight-semibold {
+  color: var(--primary-black);
+  font-weight: 600;
+}
+
+.course-stats {
+  border-top: 1px solid var(--medium-grey);
+  border-bottom: 1px solid var(--medium-grey);
+  padding: 1rem 0;
+  margin: 1rem 0;
+}
+
+.breadcrumb {
+  background: transparent;
+}
+
+.breadcrumb a {
+  color: var(--primary-black);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.breadcrumb a:hover {
+  color: var(--primary-yellow);
+  background-color: var(--accent-yellow);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+
+.breadcrumb .is-active a {
+  color: var(--dark-grey);
+}
+
+/* Progress bar styling */
+.progress.is-primary::-webkit-progress-value {
+  background-color: #3273dc;
+}
+
+.progress.is-primary::-moz-progress-bar {
+  background-color: #3273dc;
+}
+
+/* Responsive design */
+@media screen and (max-width: 768px) {
+  .course-header-card .columns {
+    display: block;
+  }
+  
+  .course-progress-card {
+    margin-top: 1rem;
+  }
+  
+  .course-lessons-card {
+    margin-bottom: 1rem;
+    max-height: 400px;
+  }
+  
+  .lesson-item {
+    padding: 0.75rem;
+  }
+  
+  .title.is-2 {
+    font-size: 2rem !important;
+  }
+}
+
+/* Custom scrollbar for lesson list */
+.lesson-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lesson-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.lesson-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.lesson-list::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* Animation for lesson status icons */
+.lesson-item .icon {
+  transition: transform 0.2s ease;
+}
+
+.lesson-item:hover .icon {
+  transform: scale(1.1);
+}
+
+/* Enhanced button styling */
+.buttons .button {
+  transition: all 0.3s ease;
+}
+
+.buttons .button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Enhanced tags */
+.tags .tag {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+/* Content styling */
+.content h4 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.content ul {
+  margin-left: 1.5rem;
+}
+
+.content li {
+  margin-bottom: 0.5rem;
+}
+
+/* Notification styling */
+.notification.is-info.is-light {
+  background-color: #e8f4fd;
+  border-left: 4px solid #3273dc;
+} 

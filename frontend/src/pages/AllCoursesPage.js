@@ -3,11 +3,13 @@ import '../App.css';
 import './HomePage.css';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import Header from '../components/Header';
 
 function AllCoursesPage() {
   const { user, logout, getAuthHeader } = useAuth();
   const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,6 +19,7 @@ function AllCoursesPage() {
 
   useEffect(() => {
     fetchCourses();
+    fetchEnrolledCourses();
   }, [getAuthHeader]);
 
   const fetchCourses = () => {
@@ -39,6 +42,32 @@ function AllCoursesPage() {
       setError('Could not connect to backend');
       setLoading(false);
     });
+  };
+
+  const fetchEnrolledCourses = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/my-courses', {
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.courses) {
+          // Create a map for easier lookup with string conversion for robust matching
+          const enrollmentMap = {};
+          data.courses.forEach(course => {
+            enrollmentMap[String(course.course_id)] = course;
+          });
+          setEnrolledCourses(enrollmentMap);
+        }
+      }
+    } catch (err) {
+      console.log('Could not fetch enrolled courses:', err);
+      // Don't set error for this as it's not critical for the page to function
+    }
   };
 
   const handleLogout = () => {
@@ -78,47 +107,69 @@ function AllCoursesPage() {
     }
   };
 
+  const getEnrollmentStatus = (courseId) => {
+    // Since enrolledCourses is now a map, do direct lookup with string conversion
+    return enrolledCourses[String(courseId)] || null;
+  };
+
+  const getButtonInfo = (course) => {
+    const enrollment = getEnrollmentStatus(course.course_id);
+    
+    if (!enrollment) {
+      return {
+        text: 'View Detail',
+        icon: 'fas fa-eye',
+        style: {
+          backgroundColor: 'white',
+          color: '#000',
+          border: '1px solid #ddd'
+        }
+      };
+    }
+    
+    // Check both enrollment_status and status fields to be safe
+    const status = enrollment.enrollment_status || enrollment.status;
+    
+    switch (status) {
+      case 'Complete':
+        return {
+          text: 'Complete',
+          icon: 'fas fa-trophy',
+          style: {
+            backgroundColor: '#4A4A4A',
+            color: '#FFFFFF !important',
+            border: 'none'
+          }
+        };
+      case 'In Progress':
+        return {
+          text: 'Resume',
+          icon: 'fas fa-play',
+          style: {
+            backgroundColor: '#FFC107',
+            color: '#000',
+            border: 'none',
+            fontWeight: '500'
+          }
+        };
+      default:
+        return {
+          text: 'Resume',
+          icon: 'fas fa-play',
+          style: {
+            backgroundColor: '#FFC107',
+            color: '#000',
+            border: 'none',
+            fontWeight: '500'
+          }
+        };
+    }
+  };
+
   return (
     <div className="home-bg">
       {/* Header */}
-      <nav className="navbar is-white home-navbar" role="navigation">
-        <div className="navbar-brand">
-          <span className="navbar-item has-text-weight-bold is-size-5">Hi HR</span>
-        </div>
-        <div className="navbar-menu">
-          <div className="navbar-start">
-            <div className="navbar-item">
-              <input 
-                className="input is-rounded" 
-                type="search" 
-                placeholder="Search courses..." 
-                style={{ width: 180 }}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <a className="navbar-item" onClick={() => navigate('/home')} style={{ cursor: 'pointer' }}>Dashboard</a>
-            <a className="navbar-item is-active">All Courses</a>
-            <a className="navbar-item">Take a Quiz</a>
-            <a className="navbar-item">About us</a>
-          </div>
-          <div className="navbar-end">
-            <div className="navbar-item has-dropdown is-hoverable">
-              <a className="navbar-link">
-                Welcome, {user?.username || 'User'}
-              </a>
-              <div className="navbar-dropdown">
-                <a className="navbar-item">Profile</a>
-                <a className="navbar-item">Settings</a>
-                <hr className="navbar-divider" />
-                <a className="navbar-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
-                  Logout
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Header />
 
       {/* Error Message */}
       {error && (
@@ -206,15 +257,36 @@ function AllCoursesPage() {
               {currentCourses.length > 0 ? (
                 currentCourses.map((course) => (
                   <div className="column is-4" key={course.course_id}>
-                    <div className="box home-course-row">
-                      <div className="mb-3">
+                    <div className="box home-course-row" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <div className="mb-3" style={{ flex: '1' }}>
                         <div className="is-flex is-justify-content-space-between is-align-items-center mb-2">
                           <div className="is-size-6 has-text-weight-bold">{course.course_name}</div>
-                          <span className={`tag ${getDifficultyColor(course.difficulty_level)}`}>
-                            {course.difficulty_level}
-                          </span>
+                          <div className="is-flex is-align-items-center">
+                            {(() => {
+                              const enrollment = getEnrollmentStatus(course.course_id);
+                              if (!enrollment) return null;
+                              
+                              const status = enrollment.enrollment_status || enrollment.status;
+                              return (
+                                <span className={`tag is-small mr-2 ${
+                                  status === 'Complete' ? 'is-success' : 'is-info'
+                                }`}>
+                                  {status === 'Complete' ? 'Completed' : 'Enrolled'}
+                                </span>
+                              );
+                            })()}
+                            <span className={`tag ${getDifficultyColor(course.difficulty_level)}`}>
+                              {course.difficulty_level}
+                            </span>
+                          </div>
                         </div>
-                        <div className="is-size-7 has-text-grey mb-2">
+                        <div className="is-size-7 has-text-grey mb-2" style={{ 
+                          minHeight: '3rem',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
                           {course.description}
                         </div>
                       </div>
@@ -241,12 +313,21 @@ function AllCoursesPage() {
                       </div>
 
                       <div className="buttons">
-                        <button className="button is-primary is-small is-fullwidth">
-                          <span className="icon is-small">
-                            <i className="fas fa-play"></i>
-                          </span>
-                          <span>More Detail..</span>
-                        </button>
+                        {(() => {
+                          const buttonInfo = getButtonInfo(course);
+                          return (
+                            <button 
+                              className="button is-small is-fullwidth"
+                              style={buttonInfo.style}
+                              onClick={() => navigate(`/course/${course.course_id}`)}
+                            >
+                              <span className="icon is-small">
+                                <i className={buttonInfo.icon}></i>
+                              </span>
+                              <span>{buttonInfo.text}</span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

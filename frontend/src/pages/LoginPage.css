@@ -1,0 +1,58 @@
+/* LoginPage specific styles with Yellow, White, Black, Grey Theme */
+.login-page {
+  background: var(--light-grey);
+  min-height: 100vh;
+}
+
+.login-card {
+  background: var(--primary-white);
+  border: 1px solid var(--medium-grey);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+}
+
+.login-logo-section {
+  background: var(--accent-yellow);
+  border-right: 1px solid var(--medium-grey);
+}
+
+.login-form-section {
+  background: var(--primary-white);
+  color: var(--primary-black);
+}
+
+.login-form .label {
+  color: var(--primary-black);
+  font-weight: 600;
+}
+
+.login-form .input {
+  border: 2px solid var(--medium-grey);
+  color: var(--primary-black);
+  background: var(--primary-white);
+}
+
+.login-form .input:focus {
+  border-color: var(--primary-yellow);
+  box-shadow: 0 0 0 0.125em rgba(255, 215, 0, 0.25);
+}
+
+.login-form .button.is-primary {
+  background-color: var(--primary-yellow);
+  border-color: var(--primary-yellow);
+  color: var(--primary-black);
+  font-weight: 600;
+}
+
+.login-form .button.is-primary:hover {
+  background-color: var(--hover-yellow);
+  border-color: var(--hover-yellow);
+}
+
+.login-demo-text {
+  color: var(--dark-grey);
+  background: var(--light-grey);
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--medium-grey);
+} 

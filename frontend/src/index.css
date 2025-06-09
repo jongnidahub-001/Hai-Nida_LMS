@@ -1,9 +1,21 @@
 @import '~bulma/css/bulma.min.css';
 
+/* Custom Color Variables - Yellow, White, Black, Grey Theme */
+:root {
+  --primary-yellow: #ffd700;
+  --primary-white: #ffffff;
+  --primary-black: #000000;
+  --light-grey: #f8f8f8;
+  --medium-grey: #e5e5e5;
+  --dark-grey: #666666;
+  --accent-yellow: #ffed4e;
+  --hover-yellow: #ffc107;
+}
+
 /* Force light mode and prevent automatic dark mode */
 html {
   color-scheme: light !important;
-  background-color: #ffffff !important;
+  background-color: var(--light-grey) !important;
 }
 
 body {
@@ -13,8 +25,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #ffffff !important;
-  color: #363636 !important;
+  background-color: var(--light-grey) !important;
+  color: var(--primary-black) !important;
 }
 
 /* Override any dark mode preferences */
@@ -51,4 +63,75 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* Global Theme Overrides */
+.button.is-primary {
+  background-color: var(--primary-yellow) !important;
+  border-color: var(--primary-yellow) !important;
+  color: var(--primary-black) !important;
+  font-weight: 600;
+}
+
+.button.is-primary:hover {
+  background-color: var(--hover-yellow) !important;
+  border-color: var(--hover-yellow) !important;
+}
+
+.button.is-info {
+  background-color: var(--primary-yellow) !important;
+  border-color: var(--primary-yellow) !important;
+  color: var(--primary-black) !important;
+}
+
+.button.is-info:hover {
+  background-color: var(--hover-yellow) !important;
+  border-color: var(--hover-yellow) !important;
+}
+
+.progress.is-info::-webkit-progress-value {
+  background-color: var(--primary-yellow) !important;
+}
+
+.progress.is-info::-moz-progress-bar {
+  background-color: var(--primary-yellow) !important;
+}
+
+.progress.is-primary::-webkit-progress-value {
+  background-color: var(--primary-yellow) !important;
+}
+
+.progress.is-primary::-moz-progress-bar {
+  background-color: var(--primary-yellow) !important;
+}
+
+.tabs.is-toggle li.is-active a {
+  background-color: var(--primary-yellow) !important;
+  border-color: var(--primary-yellow) !important;
+  color: var(--primary-black) !important;
+}
+
+.tabs.is-toggle li a {
+  border-color: var(--medium-grey) !important;
+  color: var(--primary-black) !important;
+}
+
+.tabs.is-toggle li a:hover {
+  background-color: var(--accent-yellow) !important;
+  border-color: var(--accent-yellow) !important;
+}
+
+.notification.is-info {
+  background-color: var(--accent-yellow) !important;
+  color: var(--primary-black) !important;
+}
+
+.tag.is-info {
+  background-color: var(--primary-yellow) !important;
+  color: var(--primary-black) !important;
+}
+
+.input:focus, .textarea:focus, .select select:focus {
+  border-color: var(--primary-yellow) !important;
+  box-shadow: 0 0 0 0.125em rgba(255, 215, 0, 0.25) !important;
 }

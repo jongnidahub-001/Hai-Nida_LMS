@@ -1,0 +1,72 @@
+/* Header Component Styles with Yellow, White, Black, Grey Theme */
+.app-header {
+  background-color: #ffffff;
+  border-bottom: 2px solid #ffd700; /* Yellow accent */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem 1rem;
+}
+
+.app-logo {
+  max-height: 40px;
+  width: auto;
+}
+
+.navbar-brand-text {
+  color: #000000 !important; /* Black text */
+}
+
+.search-input {
+  width: 180px;
+  border: 2px solid #e5e5e5; /* Light grey border */
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.search-input:focus {
+  border-color: #ffd700; /* Yellow focus */
+  box-shadow: 0 0 0 0.125em rgba(255, 215, 0, 0.25);
+}
+
+.navbar-link-item {
+  color: #000000 !important; /* Black text */
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border-radius: 6px;
+  margin: 0 0.25rem;
+  padding: 0.5rem 1rem;
+}
+
+.navbar-link-item:hover {
+  background-color: #ffd700; /* Yellow background on hover */
+  color: #000000 !important;
+  transform: translateY(-1px);
+}
+
+.navbar-link-item.is-active {
+  background-color: #ffd700; /* Yellow background for active */
+  color: #000000 !important;
+  font-weight: 600;
+}
+
+.logout-button {
+  background-color: #000000 !important; /* Black background */
+  color: #ffffff !important; /* White text */
+  border: none !important;
+  font-weight: 600;
+  padding: 0.5rem 1.5rem;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  background-color: #333333 !important; /* Darker grey on hover */
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.logout-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-yellow);
+} 

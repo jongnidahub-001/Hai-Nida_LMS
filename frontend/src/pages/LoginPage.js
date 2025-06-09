@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../App.css';
-import logo from '../logo.svg';
+import './LoginPage.css';
+import projectLogo from '../assets/project_logo.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -47,19 +48,19 @@ function LoginPage() {
       <div className="column is-narrow p-0" style={{ minWidth: sidebarCollapsed ? '60px' : '260px', maxWidth: sidebarCollapsed ? '60px' : '260px', transition: 'min-width 0.2s, max-width 0.2s' }}>
         <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(c => !c)} />
       </div>
-      <div className="column is-flex is-align-items-center is-justify-content-center" style={{ background: '#f5f5f5' }}>
-        <div className="card" style={{ minWidth: '600px', maxWidth: '1000px', margin: 'auto' }}>
+      <div className="column is-flex is-align-items-center is-justify-content-center" style={{ background: 'var(--light-grey)' }}>
+        <div className="card" style={{ minWidth: '600px', maxWidth: '1000px', margin: 'auto', border: '1px solid var(--medium-grey)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
           <div className="card-content">
             <div className="columns">
               {/* Left side: Logo and Info */}
-              <div className="column is-three-fifths has-background-light is-flex is-flex-direction-column is-align-items-center is-justify-content-center" style={{ borderRight: '1px solid #eee' }}>
-                <img src={logo} alt="Logo" style={{ width: '100px', marginBottom: '1rem' }} />
-                <h2 className="title is-4">Welcome Back!</h2>
-                <p className="subtitle is-6">Please login to your account</p>
+              <div className="column is-three-fifths is-flex is-flex-direction-column is-align-items-center is-justify-content-center" style={{ borderRight: '1px solid var(--medium-grey)', backgroundColor: 'white' }}>
+                <img src={projectLogo} alt="Project Logo" style={{ width: '120px', marginBottom: '1rem' }} />
+                <h2 className="title is-4" style={{ color: 'var(--primary-black)' }}>Welcome Back!</h2>
+                <p className="subtitle is-6" style={{ color: 'var(--primary-black)' }}>Please login to your account</p>
               </div>
               {/* Right side: Login Form */}
-              <div className="column">
-                <form onSubmit={handleSubmit}>
+              <div className="column login-form-section">
+                <form onSubmit={handleSubmit} className="login-form">
                   <div className="field">
                     <label className="label">Email</label>
                     <div className="control">
@@ -68,7 +69,6 @@ function LoginPage() {
                         type="email" 
                         value={email} 
                         onChange={e => setEmail(e.target.value)} 
-                        placeholder="e.g. admin@admin.com" 
                         required 
                         disabled={isLoading}
                       />
@@ -82,7 +82,6 @@ function LoginPage() {
                         type="password" 
                         value={password} 
                         onChange={e => setPassword(e.target.value)} 
-                        placeholder="********" 
                         required 
                         disabled={isLoading}
                       />
@@ -102,7 +101,7 @@ function LoginPage() {
                   </div>
                 </form>
                 <div className="has-text-centered mt-4">
-                  <p className="is-size-7 has-text-grey">
+                  <p className="is-size-7 login-demo-text">
                     Demo credentials: admin@admin.com / admin
                   </p>
                 </div>

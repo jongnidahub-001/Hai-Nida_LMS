@@ -1,66 +1,74 @@
 .home-bg {
-  background: #f8faff;
+  background: var(--light-grey);
   min-height: 100vh;
 }
-.home-navbar {
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.01);
-}
 .home-top-card {
-  background: #fff;
+  background: var(--primary-white);
   border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
   min-height: 80px;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 .home-overview-card {
-  background: #fff;
+  background: var(--primary-white);
   border-radius: 12px;
   min-height: 180px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  color: var(--primary-black);
 }
 .home-schedule-card {
-  background: #fff;
+  background: var(--primary-white);
   border-radius: 12px;
   min-height: 180px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  color: var(--primary-black);
 }
 .home-schedule-day {
-  background: #f3f6fa;
+  background: var(--accent-yellow);
   border-radius: 8px;
   padding: 0.5rem 0.2rem;
   margin: 0.2rem 0;
+  color: var(--primary-black);
+  font-weight: 500;
 }
 .home-courses-card {
-  background: #f6f8fc;
+  background: var(--primary-white);
   border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  color: var(--primary-black);
 }
 .home-course-row {
-  background: #fff;
+  background: var(--primary-white);
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--medium-grey);
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   transition: all 0.3s ease;
   overflow: hidden;
+  color: var(--primary-black);
 }
 
 .home-course-row:hover {
-  border-color: #3273dc;
-  box-shadow: 0 4px 16px rgba(50, 115, 220, 0.15);
+  border-color: var(--primary-yellow);
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.2);
   transform: translateY(-2px);
 }
 .home-classmate-card {
-  background: #f6f8fc;
+  background: var(--primary-white);
   border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid var(--medium-grey);
+  color: var(--primary-black);
 }
 .home-classmate-avatar {
   width: 60px;
   height: 60px;
-  background: #e5e7eb;
+  background: var(--medium-grey);
   border-radius: 50%;
   margin: 0 auto;
   display: block;
