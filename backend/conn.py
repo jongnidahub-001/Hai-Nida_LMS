@@ -243,7 +243,7 @@ class DatabaseManager:
             return None
     
     # Content methods
-    def create_content(self, lesson_id, content_order, content, content_type="text", content_page=1):
+    def create_content(self, lesson_id, content_order, content, content_type="text"):
         """Create new content in the database"""
         try:
             content_id = str(uuid.uuid4())
@@ -252,8 +252,7 @@ class DatabaseManager:
                 "lesson_id": lesson_id,
                 "content_order": content_order,
                 "content": content,
-                "content_type": content_type,
-                "content_page": content_page
+                "content_type": content_type
             }
             
             self.content_collection.add(
@@ -629,32 +628,123 @@ class DatabaseManager:
                     print(f"Created lesson: {lesson['lesson_title']}")
             lesson_ids_by_course.append(lesson_ids)
         
-        # Sample content for lessons
-        content_templates = [
-            # Text content
-            {"content_type": "text", "content": "Welcome to this lesson! In this section, you will learn about the fundamental concepts and practical applications."},
-            {"content_type": "text", "content": "Let's start with the basic theory and principles that form the foundation of this topic."},
-            {"content_type": "text", "content": "Now let's look at some practical examples and how to apply what you've learned."},
+        # Comprehensive content templates for different lesson types
+        def create_comprehensive_content(lesson_id, lesson_title):
+            """Create diverse content for a lesson in a single flow"""
+            content_items = []
             
-            # Video content
-            {"content_type": "video", "content": "introduction_video.mp4"},
-            {"content_type": "video", "content": "demonstration_video.mp4"},
-            {"content_type": "video", "content": "practical_examples.mp4"},
-        ]
+            # Single continuous lesson content
+            content_items = [
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 1,
+                    "content_type": "text",
+                    "content": f"# Welcome to {lesson_title}\n\nIn this comprehensive lesson, you'll dive deep into the fundamental concepts and practical applications. This lesson is designed to provide you with both theoretical knowledge and hands-on experience."
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 2,
+                    "content_type": "video",
+                    "content": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" if "introduction" in lesson_title.lower() else "https://vimeo.com/123456789"
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 3,
+                    "content_type": "text",
+                    "content": "## Learning Objectives\n\nBy the end of this lesson, you will be able to:\n- Understand the core concepts and principles\n- Apply the knowledge in practical scenarios\n- Identify common patterns and best practices\n- Troubleshoot common issues and challenges"
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 4,
+                    "content_type": "text",
+                    "content": f"## Theoretical Foundation\n\nLet's explore the fundamental theory behind {lesson_title.lower()}. Understanding these concepts is crucial for building a solid foundation in this topic.\n\n### Key Concepts:\n1. **Primary Principles**: The core ideas that drive this field\n2. **Historical Context**: How these concepts evolved over time\n3. **Modern Applications**: Current use cases and implementations"
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 5,
+                    "content_type": "video",
+                    "content": "test.mp4"
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 6,
+                    "content_type": "text",
+                    "content": "### Important Notes\n\n> **Remember**: These theoretical concepts form the backbone of practical implementation. Take time to understand each principle before moving to the next section.\n\n**Pro Tip**: Create your own examples while reading to reinforce understanding."
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 7,
+                    "content_type": "text",
+                    "content": "## Hands-On Practice\n\nTime to put theory into practice! This section contains step-by-step examples and interactive demonstrations.\n\n### Example 1: Basic Implementation\nLet's start with a simple example that demonstrates the core concepts in action."
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 8,
+                    "content_type": "video",
+                    "content": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" if "web" in lesson_title.lower() else f"practical_demo_{lesson_id[:8]}.mp4"
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 9,
+                    "content_type": "text",
+                    "content": "```python\n# Sample code example\ndef demonstrate_concept():\n    \"\"\"\n    This function demonstrates the key concepts\n    discussed in the theoretical section.\n    \"\"\"\n    result = process_data()\n    return validate_output(result)\n\n# Try this example yourself!\nprint(demonstrate_concept())\n```"
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 10,
+                    "content_type": "text",
+                    "content": "## Practice Exercises\n\nTest your understanding with these interactive exercises. Each exercise builds upon the concepts learned in this lesson.\n\n### Exercise 1: Basic Application\nApply the fundamental concepts to solve this practical problem.\n\n**Challenge**: Implement a solution using the principles discussed. Consider edge cases and optimization opportunities."
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 11,
+                    "content_type": "video",
+                    "content": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" if "machine learning" in lesson_title.lower() else f"exercise_walkthrough_{lesson_id[:8]}.mp4"
+                },
+                {
+                    "lesson_id": lesson_id,
+                    "content_order": 12,
+                    "content_type": "text",
+                    "content": "## Summary and Additional Resources\n\nCongratulations! You've completed this lesson. Here's what you've accomplished:\n\n✅ Mastered the theoretical foundations\n✅ Worked through practical examples\n✅ Completed hands-on exercises\n\n### Recommended Reading\n- Documentation and official guides\n- Industry best practices and standards\n- Case studies and real-world implementations\n\n### What's Next?\nIn the next lesson, we'll build upon these concepts and explore advanced topics."
+                }
+            ]
+            
+            return content_items
         
-        # Create content for each lesson
-        for lesson_ids in lesson_ids_by_course:
+        # Create comprehensive content for each lesson
+        total_content_created = 0
+        for course_idx, lesson_ids in enumerate(lesson_ids_by_course):
+            course_name = courses[course_idx]['course_name']
+            print(f"\nCreating content for course: {course_name}")
+            
             for lesson_id in lesson_ids:
-                for i, content_template in enumerate(content_templates[:4]):  # 4 content items per lesson
-                    success, content_id = self.create_content(
-                        lesson_id,
-                        i + 1,
-                        content_template['content'],
-                        content_template['content_type'],
-                        1 if content_template['content_type'] == 'text' else 1
-                    )
-                    if success:
-                        print(f"Created content for lesson {lesson_id[:8]}...")
+                # Get lesson details for more contextual content
+                lesson = self.get_lesson_by_id(lesson_id)
+                if lesson:
+                    lesson_title = lesson.get('lesson_title', 'Untitled Lesson')
+                    print(f"  Creating content for lesson: {lesson_title}")
+                    
+                    # Generate comprehensive content for this lesson
+                    content_items = create_comprehensive_content(lesson_id, lesson_title)
+                    
+                    # Create each content item
+                    for content_item in content_items:
+                        success, content_id = self.create_content(
+                            content_item['lesson_id'],
+                            content_item['content_order'],
+                            content_item['content'],
+                            content_item['content_type']
+                        )
+                        if success:
+                            total_content_created += 1
+                        else:
+                            print(f"    ✗ Failed to create content: {content_id}")
+                    
+                    print(f"    ✓ Created {len(content_items)} content items for {lesson_title}")
+                else:
+                    print(f"  ✗ Could not find lesson details for {lesson_id}")
+        
+        print(f"\n✅ Content creation completed! Total content items created: {total_content_created}")
 
     def initialize_enrollment_data(self):
         """Initialize sample enrollment and progress data"""

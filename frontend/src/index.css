@@ -122,7 +122,7 @@ code {
 }
 
 .notification.is-info {
-  background-color: var(--accent-yellow) !important;
+  background-color: var(--medium-grey) !important;
   color: var(--primary-black) !important;
 }
 

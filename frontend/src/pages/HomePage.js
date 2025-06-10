@@ -108,7 +108,7 @@ function HomePage() {
   };
 
   const getButtonText = (course) => {
-    if (course.enrollment_status === 'Complete') return 'Complete';
+    if (course.enrollment_status === 'Complete') return 'Completed';
     if (course.progress.progress_percentage > 0) return 'Resume';
     return 'Learn';
   };
@@ -116,8 +116,8 @@ function HomePage() {
   const getButtonStyle = (course) => {
     if (course.enrollment_status === 'Complete') {
       return {
-        backgroundColor: '#4A4A4A',
-        color: '#FFFFFF !important',
+        backgroundColor: '#48c774',
+        color: '#000',
         border: 'none'
       };
     }
@@ -334,7 +334,6 @@ function HomePage() {
           <div className="tabs is-toggle is-small mb-2">
             <ul>
               <li className={activeTab === 'ALL' ? 'is-active' : ''}><a href="#all" onClick={(e) => { e.preventDefault(); setActiveTab('ALL'); }}>ALL</a></li>
-              <li className={activeTab === 'Learn' ? 'is-active' : ''}><a href="#learn" onClick={(e) => { e.preventDefault(); setActiveTab('Learn'); }}>Learn</a></li>
               <li className={activeTab === 'Resume' ? 'is-active' : ''}><a href="#resume" onClick={(e) => { e.preventDefault(); setActiveTab('Resume'); }}>Resume</a></li>
               <li className={activeTab === 'Complete' ? 'is-active' : ''}><a href="#complete" onClick={(e) => { e.preventDefault(); setActiveTab('Complete'); }}>Complete</a></li>
             </ul>

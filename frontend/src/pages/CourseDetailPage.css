@@ -53,7 +53,7 @@
 }
 
 .lesson-item:hover {
-  background-color: var(--accent-yellow);
+  background-color: var(--medium-grey);
   border-color: var(--medium-grey);
 }
 
@@ -85,12 +85,12 @@
   font-weight: 500;
 }
 
-.breadcrumb a:hover {
+/*.breadcrumb a:hover {
   color: var(--primary-yellow);
   background-color: var(--accent-yellow);
   border-radius: 4px;
   padding: 0.25rem 0.5rem;
-}
+}*/
 
 .breadcrumb .is-active a {
   color: var(--dark-grey);

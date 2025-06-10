@@ -178,7 +178,7 @@ function CourseDetailPage() {
           <ul>
             <li><a href="#home" onClick={(e) => { e.preventDefault(); navigate('/home'); }}>Home</a></li>
             <li><a href="#courses" onClick={(e) => { e.preventDefault(); navigate('/courses'); }}>Courses</a></li>
-            <li className="is-active"><a href="#course">{course.course_name}</a></li>
+            <li><a href="#course">{course.course_name}</a></li>
           </ul>
         </nav>
       </div>
@@ -319,8 +319,11 @@ function CourseDetailPage() {
                     <button 
                       className="button is-primary is-fullwidth"
                       onClick={() => {
-                        // Continue course logic - could implement lesson navigation here
-                        console.log('Continuing course:', courseId);
+                        // Navigate to first incomplete lesson or first lesson
+                        const firstIncompleteLesson = lessons?.find(lesson => lesson.status !== 'Complete') || lessons?.[0];
+                        if (firstIncompleteLesson) {
+                          navigate(`/course/${courseId}/lesson/${firstIncompleteLesson.lesson_id}`);
+                        }
                       }}
                     >
                       <span className="icon"><i className="fas fa-play"></i></span>
@@ -432,8 +435,7 @@ function CourseDetailPage() {
                       <button 
                         className={`button is-primary is-medium ${activeLesson.status === 'Complete' ? 'is-success' : ''}`}
                         onClick={() => {
-                          // Here you would implement starting/continuing the lesson
-                          console.log('Starting lesson:', activeLesson.lesson_id);
+                          navigate(`/course/${courseId}/lesson/${activeLesson.lesson_id}`);
                         }}
                       >
                         {activeLesson.status === 'Complete' ? 'Review Lesson' : 

@@ -314,5 +314,63 @@ def get_course_content(current_user, course_id):
     except Exception as e:
         return jsonify(success=False, message=f"Error getting course content: {str(e)}"), 500
 
+@app.route('/api/lesson-content/<lesson_id>', methods=['GET'])
+@token_required
+def get_lesson_content(current_user, lesson_id):
+    """Get detailed lesson content from ChromaDB"""
+    try:
+        # Get lesson details to verify it exists
+        lesson = db.get_lesson_by_id(lesson_id)
+        if not lesson:
+            return jsonify(success=False, message="Lesson not found"), 404
+        
+        # Get lesson content from the content collection
+        content_items = db.get_content_by_lesson_id(lesson_id)
+        
+        if content_items:
+            # Sort content by content_order
+            content_items.sort(key=lambda x: x.get('content_order', 0))
+            
+            return jsonify({
+                'success': True,
+                'content': content_items,
+                'lesson': lesson
+            })
+        else:
+            # No content found for this lesson
+            return jsonify(success=False, message="No content found for this lesson"), 404
+        
+    except Exception as e:
+        return jsonify(success=False, message=f"Error getting lesson content: {str(e)}"), 500
+
+@app.route('/api/lesson-complete', methods=['POST'])
+@token_required
+def mark_lesson_complete(current_user):
+    """Mark a lesson as complete"""
+    try:
+        data = request.get_json()
+        lesson_id = data.get('lesson_id')
+        course_id = data.get('course_id')
+        
+        if not lesson_id or not course_id:
+            return jsonify(success=False, message="Lesson ID and Course ID are required"), 400
+        
+        user = db.get_user_by_email(current_user)
+        if not user:
+            return jsonify(success=False, message="User not found"), 404
+        
+        user_id = user['user_id']
+        
+        # Create or update progress
+        success, result = db.create_progress(user_id, course_id, lesson_id, "Complete")
+        
+        if success:
+            return jsonify(success=True, message="Lesson marked as complete")
+        else:
+            return jsonify(success=False, message=result), 400
+            
+    except Exception as e:
+        return jsonify(success=False, message=f"Error marking lesson complete: {str(e)}"), 500
+
 if __name__ == '__main__':
     app.run(debug=True)

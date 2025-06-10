@@ -133,11 +133,11 @@ function AllCoursesPage() {
     switch (status) {
       case 'Complete':
         return {
-          text: 'Complete',
+          text: 'Completed',
           icon: 'fas fa-trophy',
           style: {
-            backgroundColor: '#4A4A4A',
-            color: '#FFFFFF !important',
+            backgroundColor: '#48c774',
+            color: '#000',
             border: 'none'
           }
         };

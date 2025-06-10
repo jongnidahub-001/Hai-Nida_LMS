@@ -19,7 +19,7 @@ function Sidebar({ collapsed, onToggle }) {
       }}
     >
       <button
-        className="delete is-pulled-right"
+        className="is-pulled-right"
         style={{ 
           margin: '0.5rem 1rem 0 0', 
           position: 'absolute', 
@@ -32,20 +32,20 @@ function Sidebar({ collapsed, onToggle }) {
         aria-label="toggle sidebar"
         onClick={onToggle}
       >
-        {collapsed ? <span style={{ fontWeight: 'bold', fontSize: '1.5rem', color: '#363636' }}>&#9776;</span> : '×'}
+        <span style={{ fontWeight: 'bold', fontSize: '1.5rem', color: '#363636' }}>&#9776;</span>
       </button>
       {!collapsed && (
         <div className="has-text-centered" style={{ marginTop: '2.5rem', color: '#363636 !important' }}>
-          <img src={dev1} alt="dev1" style={{ width: '70px', borderRadius: '50%' }} />
+          <img src={dev1} alt="dev1" style={{ width: '100px', borderRadius: '20%' }} />
           <div className="mt-2 mb-4">
             <div className="has-text-weight-bold is-size-6" style={{ color: '#363636 !important' }}>รศ.ดร. จงสวัสดิ์ จงวัฒน์ผล</div>
             <div className="is-size-7" style={{ color: '#4a4a4a !important' }}>คณะบริหารธุรกิจ<br />สถาบันบัณฑิตพัฒนบริหารศาสตร์</div>
           </div>
-          <img src={dev1} alt="dev2" style={{ width: '70px', borderRadius: '50%' }} />
+          <img src={dev1} alt="dev2" style={{ width: '100px', borderRadius: '20%' }} />
           <div className="mt-2 mb-4">
             <div className="has-text-weight-bold is-size-7" style={{ color: '#363636 !important' }}>ฐณพงศ์ จันทนะสุคนธ์<br /><span className='has-text-weight-normal' style={{ color: '#4a4a4a !important' }}>Professional MBA #15<br />GenAI Developer</span></div>
           </div>
-          <img src={dev1} alt="dev3" style={{ width: '70px', borderRadius: '50%' }} />
+          <img src={dev1} alt="dev3" style={{ width: '100px', borderRadius: '20%' }} />
           <div className="mt-2">
             <div className="has-text-weight-bold is-size-7" style={{ color: '#363636 !important' }}>คณิกร กาญจนวงศ์<br /><span className='has-text-weight-normal' style={{ color: '#4a4a4a !important' }}>Professional MBA #15<br />UX/UI Designer</span></div>
           </div>

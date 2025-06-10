@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import AllCoursesPage from './pages/AllCoursesPage';
 import CourseDetailPage from './pages/CourseDetailPage';
+import LessonPage from './pages/LessonPage';
 
 function App() {
   return (
@@ -35,6 +36,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CourseDetailPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/course/:courseId/lesson/:lessonId" 
+            element={
+              <ProtectedRoute>
+                <LessonPage />
               </ProtectedRoute>
             } 
           />
