@@ -14,14 +14,20 @@ function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
 
-  // Redirect to home if already authenticated
+  // Redirect to appropriate page if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/home');
+      if (!user?.is_auth) {
+        navigate('/first-time-setup');
+      } else if (user?.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/home');
+      }
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,7 +37,14 @@ function LoginPage() {
     try {
       const result = await login(email, password);
       if (result.success) {
-        navigate('/home');
+        // Check if user needs first-time setup
+        if (!result.user.is_auth) {
+          navigate('/first-time-setup');
+        } else if (result.user.role === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/home');
+        }
       } else {
         setError(result.message || 'Login failed');
       }

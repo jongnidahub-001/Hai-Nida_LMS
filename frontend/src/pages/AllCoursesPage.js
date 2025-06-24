@@ -138,10 +138,11 @@ function AllCoursesPage() {
           style: {
             backgroundColor: '#48c774',
             color: '#000',
-            border: 'none'
+            border: 'none',
+            fontWeight: '500'
           }
         };
-      case 'In Progress':
+      case 'Learning':
         return {
           text: 'Resume',
           icon: 'fas fa-play',

@@ -16,6 +16,7 @@ function CourseDetailPage() {
   const [activeLesson, setActiveLesson] = useState(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollmentSuccess, setEnrollmentSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   useEffect(() => {
     fetchCourseDetails();
@@ -111,6 +112,37 @@ function CourseDetailPage() {
       setError('Error enrolling in course. Please try again.');
     } finally {
       setEnrolling(false);
+    }
+  };
+
+  const handleLessonComplete = async (lessonId) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/lesson-complete', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          course_id: courseId
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh course data to get updated progress
+        await fetchCourseDetails();
+        // Show success message
+        setSuccessMessage('Lesson marked as complete!');
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(data.message || 'Failed to mark lesson as complete');
+      }
+    } catch (error) {
+      console.error('Error marking lesson complete:', error);
+      setError('Error marking lesson as complete. Please try again.');
     }
   };
 
@@ -331,7 +363,10 @@ function CourseDetailPage() {
                     </button>
                   )}
                   
-                  <button className="button is-light is-fullwidth mt-2">
+                  <button 
+                    className="button is-light is-fullwidth mt-2"
+                    onClick={() => navigate(`/course/${courseId}/quiz`)}
+                  >
                     <span className="icon"><i className="fas fa-clipboard-check"></i></span>
                     <span>Take Assessment</span>
                   </button>

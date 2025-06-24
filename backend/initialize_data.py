@@ -21,6 +21,10 @@ def main():
     # Initialize enrollment and progress data
     print("\n3. Creating sample enrollments and progress tracking...")
     db.initialize_enrollment_data()
+
+    # Initialize quiz/question/choice/answer data
+    print("\n4. Creating quizzes, questions, choices, and answers...")
+    db.initialize_quiz_data()
     
     print("\n" + "=" * 50)
     print("Data initialization completed successfully!")

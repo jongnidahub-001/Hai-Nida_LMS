@@ -1,0 +1,409 @@
+{
+  "log": [
+    {
+      "agent": "user",
+      "content": "\nRole : You are a master at creating engaging and effective courses. You are also a master at creating lessons and lesson content that are engaging and effective. You are also a master at creating course outline that are engaging and effective.\nGoal : Create a course, lesson and lesson content for a given document\nBackstory : With over 10 years of experience in the field of education, you are a master at creating engaging and effective courses. You are also a master at creating lessons and lesson content that are engaging and effective. You are also a master at creating course outline that are engaging and effective.\n\nAdditional Instructions :\n - use the document to create a course, lesson and lesson content\n - Lesson must relate to the course\n - Lesson Content must cover all the topics in the lesson and user can understand with in defined lesson duration.\n - use external data(own knowledge) to fulfill the course, lesson and lesson content in case of data is not enough in the document.\n\n\nHere is the document content:\n\n\n\nReturn the output in the exact FinalOutput format with course, lessons, and lesson_contents.\n\n"
+    },
+    {
+      "agent": "Expert_Agent",
+      "content": {
+        "course": {
+          "course_id": "INTRO101",
+          "course_name": "Introduction to Learning",
+          "description": "A comprehensive course designed to introduce learners to effective learning strategies, cognitive processes, and techniques for academic success.",
+          "difficulty_level": "Casual",
+          "learning_objectives": [
+            "Understand fundamental learning theories.",
+            "Identify personal learning styles and preferences.",
+            "Apply effective study techniques.",
+            "Improve memory and retention skills.",
+            "Develop critical thinking and problem-solving abilities.",
+            "Manage time effectively for academic success.",
+            "Utilize resources for continuous learning."
+          ],
+          "prerequisites": [
+            "None"
+          ],
+          "status": "Active",
+          "total_hour": 10
+        },
+        "lesson_contents": [
+          {
+            "content": "Welcome to Introduction to Learning! In this first module, we will define what learning truly means and explore different learning styles. Understanding how you learn best is crucial for academic success.",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON1"
+          },
+          {
+            "content": "Watch this video to understand different learning styles: visual, auditory, kinesthetic, and read/write. Reflect on which style resonates most with you.",
+            "content_order": 2,
+            "content_type": "video",
+            "lesson_id": "LESSON1"
+          },
+          {
+            "content": "Dive into effective note-taking strategies. Learn about the Cornell method, mind mapping, and outlining. Practice these techniques to find what works best for you.",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON2"
+          },
+          {
+            "content": "Create a mind map summarizing the key concepts from the previous lesson. Share your mind map with a peer and discuss different perspectives.",
+            "content_order": 2,
+            "content_type": "text",
+            "lesson_id": "LESSON2"
+          },
+          {
+            "content": "Time management is crucial for academic success. Learn how to prioritize tasks, create a study schedule, and avoid procrastination. Discover tools and techniques to optimize your time.",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON3"
+          },
+          {
+            "content": "Download and use a time management app, such as Google Calendar or Trello, to schedule your study sessions and track your progress. Reflect on how time management improves your productivity.",
+            "content_order": 2,
+            "content_type": "text",
+            "lesson_id": "LESSON3"
+          },
+          {
+            "content": "Delve into memory techniques such as mnemonics, spaced repetition, and chunking. Practice these techniques to improve your retention and recall abilities.",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON4"
+          },
+          {
+            "content": "Create mnemonic devices for challenging concepts in your field of study. Share your mnemonics with peers and test each other's memory.",
+            "content_order": 2,
+            "content_type": "text",
+            "lesson_id": "LESSON4"
+          }
+        ],
+        "lessons": [
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 2,
+            "lesson_id": "LESSON1",
+            "lesson_order": 1,
+            "lesson_title": "Understanding Learning Styles",
+            "what_you_will_learn": [
+              "Define learning and its importance.",
+              "Identify different learning styles (visual, auditory, kinesthetic, read/write).",
+              "Determine your personal learning style."
+            ]
+          },
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 2,
+            "lesson_id": "LESSON2",
+            "lesson_order": 2,
+            "lesson_title": "Effective Note-Taking Techniques",
+            "what_you_will_learn": [
+              "Learn the Cornell method of note-taking.",
+              "Understand mind mapping techniques.",
+              "Practice outlining strategies.",
+              "Customize note-taking to suit your learning style."
+            ]
+          },
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 3,
+            "lesson_id": "LESSON3",
+            "lesson_order": 3,
+            "lesson_title": "Time Management and Study Schedules",
+            "what_you_will_learn": [
+              "Prioritize tasks effectively.",
+              "Create a realistic study schedule.",
+              "Avoid procrastination.",
+              "Use time management tools and apps."
+            ]
+          },
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 3,
+            "lesson_id": "LESSON4",
+            "lesson_order": 4,
+            "lesson_title": "Memory and Retention Strategies",
+            "what_you_will_learn": [
+              "Apply mnemonic devices for memorization.",
+              "Utilize spaced repetition for long-term retention.",
+              "Practice chunking information for better recall.",
+              "Enhance memory through association and visualization."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "agent": "Validator_Agent",
+      "content": "Okay, here's my feedback on the provided course, lessons, and lesson content.\n\n**Course Feedback:**\n\n*   The course description, learning objectives, and prerequisites are well-defined and appropriate for an introductory course.\n*   The total duration of 10 hours seems reasonable given the scope of the course.\n*   Consider adding a brief introductory video or welcome message to the course to further engage students.\n\n**Lessons Feedback:**\n\n*   The lesson titles are clear and relevant to the overall course objectives.\n*   The duration of each lesson is appropriate.\n*   The \"what_you_will_learn\" section for each lesson is well-defined.\n*   In Lesson 3, consider mentioning the importance of breaks and self-care to avoid burnout.\n*   In Lesson 4, provide real-life examples of how memory and retention strategies can be used.\n\n**Lesson Contents Feedback:**\n\n*   The lesson content is well-organized and aligned with the lesson objectives.\n*   The use of both text and video content is a good way to cater to different learning preferences.\n*   Consider adding interactive quizzes or exercises to reinforce learning.\n*   Provide links to external resources or further reading materials.\n*   In Lesson 1, provide a quiz to determine each student's learning style.\n*   In Lesson 2, provide examples of mind maps and Cornell notes.\n*   In Lesson 3, add the Pomodoro technique to the time management methods.\n\nAddressing the mentioned points can improve the course's educational value and effectiveness.\n\n"
+    },
+    {
+      "agent": "Expert_Agent",
+      "content": {
+        "course": {
+          "course_id": "INTRO101",
+          "course_name": "Introduction to Learning",
+          "description": "A comprehensive course designed to introduce learners to effective learning strategies, cognitive processes, and techniques for academic success.",
+          "difficulty_level": "Casual",
+          "learning_objectives": [
+            "Understand fundamental learning theories.",
+            "Identify personal learning styles and preferences.",
+            "Apply effective study techniques.",
+            "Improve memory and retention skills.",
+            "Develop critical thinking and problem-solving abilities.",
+            "Manage time effectively for academic success.",
+            "Utilize resources for continuous learning."
+          ],
+          "prerequisites": [
+            "None"
+          ],
+          "status": "Active",
+          "total_hour": 10
+        },
+        "lesson_contents": [
+          {
+            "content": "Welcome to Introduction to Learning! In this first module, we will define what learning truly means and explore different learning styles. Understanding how you learn best is crucial for academic success. Also, at the end of this module, you will find a quiz to help you determine what your learning style is!",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON1"
+          },
+          {
+            "content": "Watch this video to understand different learning styles: visual, auditory, kinesthetic, and read/write. Reflect on which style resonates most with you. [Link to video]",
+            "content_order": 2,
+            "content_type": "video",
+            "lesson_id": "LESSON1"
+          },
+          {
+            "content": "Take this quiz to determine your learning style: [Link to Quiz]",
+            "content_order": 3,
+            "content_type": "text",
+            "lesson_id": "LESSON1"
+          },
+          {
+            "content": "Dive into effective note-taking strategies. Learn about the Cornell method, mind mapping, and outlining. Practice these techniques to find what works best for you. Here are a few examples of mind maps and cornell notes [link to examples]",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON2"
+          },
+          {
+            "content": "Create a mind map summarizing the key concepts from the previous lesson. Share your mind map with a peer and discuss different perspectives.",
+            "content_order": 2,
+            "content_type": "text",
+            "lesson_id": "LESSON2"
+          },
+          {
+            "content": "Time management is crucial for academic success. Learn how to prioritize tasks, create a study schedule, and avoid procrastination. Discover tools and techniques to optimize your time. Also, let's talk about the Pomodoro Technique, remember to take breaks and self-care to avoid burnout.",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON3"
+          },
+          {
+            "content": "Download and use a time management app, such as Google Calendar or Trello, to schedule your study sessions and track your progress. Reflect on how time management improves your productivity.",
+            "content_order": 2,
+            "content_type": "text",
+            "lesson_id": "LESSON3"
+          },
+          {
+            "content": "Delve into memory techniques such as mnemonics, spaced repetition, and chunking. Practice these techniques to improve your retention and recall abilities. Here are real life examples to understand better [link to examples]",
+            "content_order": 1,
+            "content_type": "text",
+            "lesson_id": "LESSON4"
+          },
+          {
+            "content": "Create mnemonic devices for challenging concepts in your field of study. Share your mnemonics with peers and test each other's memory.",
+            "content_order": 2,
+            "content_type": "text",
+            "lesson_id": "LESSON4"
+          }
+        ],
+        "lessons": [
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 2,
+            "lesson_id": "LESSON1",
+            "lesson_order": 1,
+            "lesson_title": "Understanding Learning Styles",
+            "what_you_will_learn": [
+              "Define learning and its importance.",
+              "Identify different learning styles (visual, auditory, kinesthetic, read/write).",
+              "Determine your personal learning style."
+            ]
+          },
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 2,
+            "lesson_id": "LESSON2",
+            "lesson_order": 2,
+            "lesson_title": "Effective Note-Taking Techniques",
+            "what_you_will_learn": [
+              "Learn the Cornell method of note-taking.",
+              "Understand mind mapping techniques.",
+              "Practice outlining strategies.",
+              "Customize note-taking to suit your learning style."
+            ]
+          },
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 3,
+            "lesson_id": "LESSON3",
+            "lesson_order": 3,
+            "lesson_title": "Time Management and Study Schedules",
+            "what_you_will_learn": [
+              "Prioritize tasks effectively.",
+              "Create a realistic study schedule.",
+              "Avoid procrastination.",
+              "Use time management tools and apps."
+            ]
+          },
+          {
+            "course_id": "INTRO101",
+            "duration_hours": 3,
+            "lesson_id": "LESSON4",
+            "lesson_order": 4,
+            "lesson_title": "Memory and Retention Strategies",
+            "what_you_will_learn": [
+              "Apply mnemonic devices for memorization.",
+              "Utilize spaced repetition for long-term retention.",
+              "Practice chunking information for better recall.",
+              "Enhance memory through association and visualization."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "agent": "Validator_Agent",
+      "content": "APPROVE\n"
+    }
+  ],
+  "output": {
+    "course": {
+      "course_id": "INTRO101",
+      "course_name": "Introduction to Learning",
+      "description": "A comprehensive course designed to introduce learners to effective learning strategies, cognitive processes, and techniques for academic success.",
+      "difficulty_level": "Casual",
+      "learning_objectives": [
+        "Understand fundamental learning theories.",
+        "Identify personal learning styles and preferences.",
+        "Apply effective study techniques.",
+        "Improve memory and retention skills.",
+        "Develop critical thinking and problem-solving abilities.",
+        "Manage time effectively for academic success.",
+        "Utilize resources for continuous learning."
+      ],
+      "prerequisites": [
+        "None"
+      ],
+      "status": "Active",
+      "total_hour": 10
+    },
+    "lesson_contents": [
+      {
+        "content": "Welcome to Introduction to Learning! In this first module, we will define what learning truly means and explore different learning styles. Understanding how you learn best is crucial for academic success. Also, at the end of this module, you will find a quiz to help you determine what your learning style is!",
+        "content_order": 1,
+        "content_type": "text",
+        "lesson_id": "LESSON1"
+      },
+      {
+        "content": "Watch this video to understand different learning styles: visual, auditory, kinesthetic, and read/write. Reflect on which style resonates most with you. [Link to video]",
+        "content_order": 2,
+        "content_type": "video",
+        "lesson_id": "LESSON1"
+      },
+      {
+        "content": "Take this quiz to determine your learning style: [Link to Quiz]",
+        "content_order": 3,
+        "content_type": "text",
+        "lesson_id": "LESSON1"
+      },
+      {
+        "content": "Dive into effective note-taking strategies. Learn about the Cornell method, mind mapping, and outlining. Practice these techniques to find what works best for you. Here are a few examples of mind maps and cornell notes [link to examples]",
+        "content_order": 1,
+        "content_type": "text",
+        "lesson_id": "LESSON2"
+      },
+      {
+        "content": "Create a mind map summarizing the key concepts from the previous lesson. Share your mind map with a peer and discuss different perspectives.",
+        "content_order": 2,
+        "content_type": "text",
+        "lesson_id": "LESSON2"
+      },
+      {
+        "content": "Time management is crucial for academic success. Learn how to prioritize tasks, create a study schedule, and avoid procrastination. Discover tools and techniques to optimize your time. Also, let's talk about the Pomodoro Technique, remember to take breaks and self-care to avoid burnout.",
+        "content_order": 1,
+        "content_type": "text",
+        "lesson_id": "LESSON3"
+      },
+      {
+        "content": "Download and use a time management app, such as Google Calendar or Trello, to schedule your study sessions and track your progress. Reflect on how time management improves your productivity.",
+        "content_order": 2,
+        "content_type": "text",
+        "lesson_id": "LESSON3"
+      },
+      {
+        "content": "Delve into memory techniques such as mnemonics, spaced repetition, and chunking. Practice these techniques to improve your retention and recall abilities. Here are real life examples to understand better [link to examples]",
+        "content_order": 1,
+        "content_type": "text",
+        "lesson_id": "LESSON4"
+      },
+      {
+        "content": "Create mnemonic devices for challenging concepts in your field of study. Share your mnemonics with peers and test each other's memory.",
+        "content_order": 2,
+        "content_type": "text",
+        "lesson_id": "LESSON4"
+      }
+    ],
+    "lessons": [
+      {
+        "course_id": "INTRO101",
+        "duration_hours": 2,
+        "lesson_id": "LESSON1",
+        "lesson_order": 1,
+        "lesson_title": "Understanding Learning Styles",
+        "what_you_will_learn": [
+          "Define learning and its importance.",
+          "Identify different learning styles (visual, auditory, kinesthetic, read/write).",
+          "Determine your personal learning style."
+        ]
+      },
+      {
+        "course_id": "INTRO101",
+        "duration_hours": 2,
+        "lesson_id": "LESSON2",
+        "lesson_order": 2,
+        "lesson_title": "Effective Note-Taking Techniques",
+        "what_you_will_learn": [
+          "Learn the Cornell method of note-taking.",
+          "Understand mind mapping techniques.",
+          "Practice outlining strategies.",
+          "Customize note-taking to suit your learning style."
+        ]
+      },
+      {
+        "course_id": "INTRO101",
+        "duration_hours": 3,
+        "lesson_id": "LESSON3",
+        "lesson_order": 3,
+        "lesson_title": "Time Management and Study Schedules",
+        "what_you_will_learn": [
+          "Prioritize tasks effectively.",
+          "Create a realistic study schedule.",
+          "Avoid procrastination.",
+          "Use time management tools and apps."
+        ]
+      },
+      {
+        "course_id": "INTRO101",
+        "duration_hours": 3,
+        "lesson_id": "LESSON4",
+        "lesson_order": 4,
+        "lesson_title": "Memory and Retention Strategies",
+        "what_you_will_learn": [
+          "Apply mnemonic devices for memorization.",
+          "Utilize spaced repetition for long-term retention.",
+          "Practice chunking information for better recall.",
+          "Enhance memory through association and visualization."
+        ]
+      }
+    ]
+  }
+}

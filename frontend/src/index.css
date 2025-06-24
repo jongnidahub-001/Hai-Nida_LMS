@@ -41,10 +41,10 @@ body {
     color: #363636 !important;
   }
   
-  /* Force all text to be dark on light backgrounds */
-  * {
-    color: #363636 !important;
-  }
+    /* Force all text to be dark on light backgrounds */
+    * {
+      color: #363636 !important;
+    }
   
   /* Ensure form elements remain light */
   input, textarea, select {
@@ -71,6 +71,19 @@ code {
   border-color: var(--primary-yellow) !important;
   color: var(--primary-black) !important;
   font-weight: 600;
+}
+
+
+.button.is-expander {
+  background-color: var(--primary-white) !important;
+  border-color: var(--primary-white) !important;
+  color: var(--primary-black) !important;
+  font-weight: 600;
+}
+
+.button.is-expander:hover {
+  background-color: var(--hover-yellow) !important;
+  border-color: var(--hover-yellow) !important;
 }
 
 .button.is-primary:hover {

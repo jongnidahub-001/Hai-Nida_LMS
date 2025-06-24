@@ -20,6 +20,7 @@ function LessonPage() {
   const [error, setError] = useState(null);
   const [allLessons, setAllLessons] = useState([]);
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
+  const [markCompleteLoading, setMarkCompleteLoading] = useState(false);
 
   useEffect(() => {
     // Set navigation loading if this is a lesson change (not initial load)
@@ -207,7 +208,10 @@ function LessonPage() {
   };
 
   const markLessonComplete = async () => {
+    setMarkCompleteLoading(true);
     try {
+      console.log('Marking lesson complete:', { lessonId, courseId });
+      
       const response = await fetch(`http://localhost:5000/api/lesson-complete`, {
         method: 'POST',
         headers: {
@@ -220,14 +224,26 @@ function LessonPage() {
         })
       });
       
+      console.log('Response status:', response.status);
+      const responseData = await response.json();
+      console.log('Response data:', responseData);
+      
       if (response.ok) {
         // Update lesson status
         setCurrentLesson(prev => ({ ...prev, status: 'Complete' }));
         // Refresh course data to update progress
         fetchCourseData();
+        console.log('Lesson marked as complete successfully');
+      } else {
+        console.error('Failed to mark lesson complete:', responseData);
+        // Show error message to user
+        alert(`Failed to mark lesson complete: ${responseData.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error marking lesson complete:', error);
+      alert(`Error marking lesson complete: ${error.message}`);
+    } finally {
+      setMarkCompleteLoading(false);
     }
   };
 
@@ -514,8 +530,9 @@ function LessonPage() {
                   <div className="buttons">
                     {currentLesson.status !== 'Complete' && (
                       <button 
-                        className="button is-success is-medium"
+                        className={`button is-success is-medium ${markCompleteLoading ? 'is-loading' : ''}`}
                         onClick={markLessonComplete}
+                        disabled={markCompleteLoading}
                       >
                         <span className="icon"><i className="fas fa-check"></i></span>
                         <span>Mark as Complete</span>

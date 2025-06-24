@@ -10,43 +10,58 @@ class DatabaseManager:
     def __init__(self):
         # Initialize ChromaDB with persistent storage
         self.persist_directory = "./chroma_db"
-        self.client = chromadb.PersistentClient(path=self.persist_directory)
         
-        # Get or create the users collection
-        try:
-            self.users_collection = self.client.get_collection("users")
-        except:
-            self.users_collection = self.client.create_collection("users")
+        # Create directory if it doesn't exist
+        if not os.path.exists(self.persist_directory):
+            os.makedirs(self.persist_directory)
         
-        # Get or create the courses collection
         try:
-            self.courses_collection = self.client.get_collection("courses")
-        except:
-            self.courses_collection = self.client.create_collection("courses")
+            # Initialize ChromaDB client with settings
+            self.client = chromadb.PersistentClient(
+                path=self.persist_directory,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True
+                )
+            )
+            
+            # Get or create collections
+            self._initialize_collections()
+            
+        except Exception as e:
+            print(f"Error initializing database: {str(e)}")
+            # If there's an error, try to reset the database
+            if os.path.exists(self.persist_directory):
+                import shutil
+                shutil.rmtree(self.persist_directory)
+                os.makedirs(self.persist_directory)
+            
+            # Reinitialize client
+            self.client = chromadb.PersistentClient(
+                path=self.persist_directory,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True
+                )
+            )
+            self._initialize_collections()
+    
+    def _initialize_collections(self):
+        """Initialize all required collections"""
+        collections = [
+            "users", "courses", "lessons", "content", 
+            "enrollments", "progress", "quiz", "question", 
+            "choice", "answer", "quiz_score"
+        ]
         
-        # Get or create the lessons collection
-        try:
-            self.lessons_collection = self.client.get_collection("lessons")
-        except:
-            self.lessons_collection = self.client.create_collection("lessons")
-        
-        # Get or create the content collection
-        try:
-            self.content_collection = self.client.get_collection("content")
-        except:
-            self.content_collection = self.client.create_collection("content")
-        
-        # Get or create the enrollments collection
-        try:
-            self.enrollments_collection = self.client.get_collection("enrollments")
-        except:
-            self.enrollments_collection = self.client.create_collection("enrollments")
-        
-        # Get or create the progress collection
-        try:
-            self.progress_collection = self.client.get_collection("progress")
-        except:
-            self.progress_collection = self.client.create_collection("progress")
+        for collection_name in collections:
+            try:
+                collection = self.client.get_collection(collection_name)
+                setattr(self, f"{collection_name}_collection", collection)
+            except:
+                collection = self.client.create_collection(collection_name)
+                setattr(self, f"{collection_name}_collection", collection)
+                print(f"Created collection: {collection_name}")
     
     def hash_password(self, password):
         """Hash password using bcrypt"""
@@ -56,7 +71,7 @@ class DatabaseManager:
         """Verify password against hash"""
         return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
     
-    def create_user(self, username, email, password, full_name=None):
+    def create_user(self, username, email, password, full_name=None, role="user", is_auth=True):
         """Create a new user in the database"""
         try:
             # Check if user already exists
@@ -75,12 +90,14 @@ class DatabaseManager:
                 "email": email,
                 "password": hashed_password,
                 "full_name": full_name or username,
+                "role": role,
+                "is_auth": is_auth,
                 "created_at": str(uuid.uuid1().time)
             }
             
             # Add to ChromaDB collection
             self.users_collection.add(
-                documents=[f"User: {username} Email: {email}"],
+                documents=[f"User: {username} Email: {email} Role: {role}"],
                 metadatas=[user_data],
                 ids=[user_id]
             )
@@ -122,10 +139,13 @@ class DatabaseManager:
             return []
     
     # Course methods
-    def create_course(self, course_name, description, total_hour, status="Active", difficulty_level="Regular", learning_objectives=None, prerequisites=None):
+    def create_course(self, course_id=None, course_name=None, description=None, total_hour=None, status="Active", difficulty_level="Regular", learning_objectives=None, prerequisites=None):
         """Create a new course in the database"""
         try:
-            course_id = str(uuid.uuid4())
+            if course_id is None:
+                course_id = str(uuid.uuid4())
+            else:
+                course_id = course_id
             course_data = {
                 "course_id": course_id,
                 "course_name": course_name,
@@ -182,10 +202,13 @@ class DatabaseManager:
             return []
     
     # Lesson methods
-    def create_lesson(self, course_id, lesson_title, duration_hours, lesson_order, description="", what_you_will_learn=None):
+    def create_lesson(self, lesson_id=None, course_id=None, lesson_title=None, duration_hours=None, lesson_order=None, description=None, what_you_will_learn=None):
         """Create a new lesson in the database"""
         try:
-            lesson_id = str(uuid.uuid4())
+            if lesson_id is None:
+                lesson_id = str(uuid.uuid4())
+            else:
+                lesson_id = lesson_id
             lesson_data = {
                 "lesson_id": lesson_id,
                 "course_id": course_id,
@@ -288,19 +311,25 @@ class DatabaseManager:
                 "username": "admin",
                 "email": "admin@admin.com",
                 "password": "admin",
-                "full_name": "System Administrator"
+                "full_name": "System Administrator",
+                "role": "admin",
+                "is_auth": True
             },
             {
                 "username": "user1",
                 "email": "user1@example.com", 
                 "password": "password123",
-                "full_name": "John Doe"
+                "full_name": "John Doe",
+                "role": "user",
+                "is_auth": True
             },
             {
                 "username": "user2",
                 "email": "user2@example.com",
                 "password": "password456", 
-                "full_name": "Jane Smith"
+                "full_name": "Jane Smith",
+                "role": "user",
+                "is_auth": True
             }
         ]
         
@@ -309,7 +338,9 @@ class DatabaseManager:
                 user['username'],
                 user['email'],
                 user['password'],
-                user['full_name']
+                user['full_name'],
+                user['role'],
+                user['is_auth']
             )
             print(f"Creating user {user['email']}: {message}")
     
@@ -401,13 +432,13 @@ class DatabaseManager:
         for course in courses:
             print(f"Creating course: {course['course_name']}")
             success, result = self.create_course(
-                course['course_name'],
-                course['description'],
-                course['total_hour'],
-                course['status'],
-                course['difficulty_level'],
-                course['learning_objectives'],
-                course['prerequisites']
+                course_name=course['course_name'],
+                description=course['description'],
+                total_hour=course['total_hour'],
+                status=course['status'],
+                difficulty_level=course['difficulty_level'],
+                learning_objectives=course['learning_objectives'],
+                prerequisites=course['prerequisites']
             )
             if success:
                 course_ids.append(result)
@@ -616,12 +647,12 @@ class DatabaseManager:
             lesson_ids = []
             for lesson in lessons_data[i]:
                 success, lesson_id = self.create_lesson(
-                    course_id,
-                    lesson['lesson_title'],
-                    lesson['duration_hours'],
-                    lesson['lesson_order'],
-                    lesson['description'],
-                    lesson['what_you_will_learn']
+                    course_id = course_id,
+                    lesson_title = lesson['lesson_title'],
+                    duration_hours = lesson['duration_hours'],
+                    lesson_order = lesson['lesson_order'],
+                    description = lesson['description'],
+                    what_you_will_learn = lesson['what_you_will_learn']
                 )
                 if success:
                     lesson_ids.append(lesson_id)
@@ -730,10 +761,10 @@ class DatabaseManager:
                     # Create each content item
                     for content_item in content_items:
                         success, content_id = self.create_content(
-                            content_item['lesson_id'],
-                            content_item['content_order'],
-                            content_item['content'],
-                            content_item['content_type']
+                            lesson_id=content_item['lesson_id'],
+                            content_order=content_item['content_order'],
+                            content=content_item['content'],
+                            content_type=content_item['content_type']
                         )
                         if success:
                             total_content_created += 1
@@ -904,16 +935,15 @@ class DatabaseManager:
         """Get all enrollments for a specific user"""
         try:
             results = self.enrollments_collection.query(
-                query_texts=[f"User {user_id}"],
+                query_texts=[f"User: {user_id}"],
                 n_results=100,
                 where={"user_id": user_id}
             )
-            
             if results['metadatas']:
                 return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
             return []
         except Exception as e:
-            print(f"Error getting user enrollments: {str(e)}")
+            print(f"Error getting enrollments: {str(e)}")
             return []
     
     def get_enrollments_by_course(self, course_id):
@@ -1064,6 +1094,522 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting course progress summary: {str(e)}")
             return {"total_lessons": 0, "completed_lessons": 0, "progress_percentage": 0}
+
+    # Quiz methods
+    def create_quiz(self, quiz_id=None, course_id=None, quiz_title=None, status="active", description="", difficulty_level="Regular"):
+        """Create a new quiz in the database"""
+        try:
+            if quiz_id is None:
+                quiz_id = str(uuid.uuid4())
+            else:
+                quiz_id = quiz_id
+            quiz_data = {
+                "quiz_id": quiz_id,
+                "course_id": course_id,
+                "quiz_title": quiz_title,
+                "status": status,
+                "description": description,
+                "difficulty_level": difficulty_level
+            }
+            self.quiz_collection.add(
+                documents=[f"Quiz: {quiz_title} Course: {course_id}"],
+                metadatas=[quiz_data],
+                ids=[quiz_id]
+            )
+            return True, quiz_id
+        except Exception as e:
+            return False, f"Error creating quiz: {str(e)}"
+
+    def get_quiz_by_course_id(self, course_id):
+        """Get quiz by course_id"""
+        try:
+            results = self.quiz_collection.query(
+                query_texts=[f"Course: {course_id}"],
+                n_results=10,
+                where={"course_id": course_id}
+            )
+            if results['metadatas']:
+                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+            return []
+        except Exception as e:
+            print(f"Error getting quiz: {str(e)}")
+            return []
+
+    # Question methods
+    def create_question(self, question_id=None, quiz_id=None, question_text=None, question_type=None, points=None):
+        """Create a new question in the database"""
+        try:
+            if question_id is None:
+                question_id = str(uuid.uuid4())
+            else:
+                question_id = question_id
+            question_data = {
+                "question_id": question_id,
+                "quiz_id": quiz_id,
+                "question_text": question_text,
+                "question_type": question_type,
+                "points": points
+            }
+            self.question_collection.add(
+                documents=[f"Question: {question_text} Quiz: {quiz_id}"],
+                metadatas=[question_data],
+                ids=[question_id]
+            )
+            return True, question_id
+        except Exception as e:
+            return False, f"Error creating question: {str(e)}"
+
+    def get_questions_by_quiz_id(self, quiz_id):
+        """Get all questions for a quiz"""
+        try:
+            results = self.question_collection.query(
+                query_texts=[f"Quiz: {quiz_id}"],
+                n_results=100,
+                where={"quiz_id": quiz_id}
+            )
+            if results['metadatas']:
+                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+            return []
+        except Exception as e:
+            print(f"Error getting questions: {str(e)}")
+            return []
+
+    # Choice methods
+    def create_choice(self, choice_id=None, question_id=None, choice_text=None, is_correct=None, question_type="choices"):
+        """Create a new choice for a question"""
+        try:
+            if choice_id is None:
+                choice_id = str(uuid.uuid4())
+            else:
+                choice_id = choice_id
+            choice_data = {
+                "choice_id": choice_id,
+                "question_id": question_id,
+                "choice_text": choice_text,
+                "question_type": question_type,
+                "is_correct": is_correct
+            }
+            self.choice_collection.add(
+                documents=[f"Choice: {choice_text} Question: {question_id}"],
+                metadatas=[choice_data],
+                ids=[choice_id]
+            )
+            return True, choice_id
+        except Exception as e:
+            return False, f"Error creating choice: {str(e)}"
+
+    def get_choices_by_question_id(self, question_id):
+        """Get all choices for a question"""
+        try:
+            results = self.choice_collection.query(
+                query_texts=[f"Question: {question_id}"],
+                n_results=20,
+                where={"question_id": question_id}
+            )
+            if results['metadatas']:
+                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+            return []
+        except Exception as e:
+            print(f"Error getting choices: {str(e)}")
+            return []
+
+    # Answer methods
+    def create_answer(self, answer_id=None, question_id=None, correct_answer=None):
+        """Create a new answer for a question"""
+        try:
+            if answer_id is None:
+                answer_id = str(uuid.uuid4())
+            else:
+                answer_id = answer_id
+            answer_data = {
+                "answer_id": answer_id,
+                "question_id": question_id,
+                "correct_answer": correct_answer
+            }
+            self.answer_collection.add(
+                documents=[f"Answer: {correct_answer} Question: {question_id}"],
+                metadatas=[answer_data],
+                ids=[answer_id]
+            )
+            return True, answer_id
+        except Exception as e:
+            return False, f"Error creating answer: {str(e)}"
+
+    def get_answer_by_question_id(self, question_id):
+        """Get answer for a question"""
+        try:
+            results = self.answer_collection.query(
+                query_texts=[f"Question: {question_id}"],
+                n_results=1,
+                where={"question_id": question_id}
+            )
+            if results['metadatas'] and len(results['metadatas'][0]) > 0:
+                return results['metadatas'][0][0]
+            return None
+        except Exception as e:
+            print(f"Error getting answer: {str(e)}")
+            return None
+
+    def initialize_quiz_data(self):
+        """Initialize quizzes, questions, choices, and answers for each course"""
+        print("\n4. Creating quizzes, questions, choices, and answers for each course...")
+        courses = self.get_all_courses()
+        for course in courses:
+            quiz_title = f"Quiz for {course['course_name']}"
+            status = "active"
+            description = f"Auto-generated quiz for {course['course_name']}"
+            difficulty_level = course.get('difficulty_level', 'Regular')
+            success, quiz_id = self.create_quiz(course_id=course['course_id'], quiz_title=quiz_title, status=status, description=description, difficulty_level=difficulty_level)
+            if not success:
+                print(f"  ✗ Failed to create quiz for {course['course_name']}: {quiz_id}")
+                continue
+            print(f"  ✓ Created quiz for {course['course_name']}")
+            # 10 multiple choice questions
+            for i in range(10):
+                q_text = f"What is the answer to MCQ {i+1} for {course['course_name']}?"
+                success, question_id = self.create_question(quiz_id=quiz_id, question_text=q_text, question_type="choices", points=1)
+                if not success:
+                    print(f"    ✗ Failed to create MCQ question: {question_id}")
+                    continue
+                # 4 choices per question, 1 correct
+                correct_index = i % 4
+                for j in range(4):
+                    choice_text = f"Choice {chr(65+j)} for MCQ {i+1}"
+                    is_correct = (j == correct_index)
+                    self.create_choice(question_id=question_id, choice_text=choice_text, is_correct=is_correct, question_type="choices")
+            # 5 subjective questions
+            for i in range(5):
+                q_text = f"Describe the concept for Subjective Q{i+1} in {course['course_name']}?"
+                success, question_id = self.create_question(quiz_id=quiz_id, question_text=q_text, question_type="subjective", points=2)
+                if not success:
+                    print(f"    ✗ Failed to create subjective question: {question_id}")
+                    continue
+                # Add a sample answer
+                self.create_answer(question_id=question_id, correct_answer=f"Sample answer for Subjective Q{i+1}")
+            # 5 fill-in-the-blank questions
+            for i in range(5):
+                q_text = f"Fill in the blank: ____ is important in {course['course_name']} (Q{i+1})"
+                success, question_id = self.create_question(quiz_id=quiz_id, question_text=q_text, question_type="fill", points=2)
+                if not success:
+                    print(f"    ✗ Failed to create fill-in-the-blank question: {question_id}")
+                    continue
+                # Add a correct answer
+                self.create_answer(question_id=question_id, correct_answer=f"Correct answer {i+1}")
+        print("Quiz/question/choice/answer data initialization completed!")
+
+    # Quiz Score methods
+    def create_quiz_score(self, user_id, course_id, quiz_id, score, total_points, answers):
+        """Create a new quiz score record"""
+        try:
+            # Check if user already took the quiz
+            existing_score = self.get_quiz_score(user_id, course_id, quiz_id)
+            if existing_score:
+                return False, "User has already taken this quiz"
+            
+            score_id = str(uuid.uuid4())
+            score_data = {
+                "score_id": score_id,
+                "user_id": user_id,
+                "course_id": course_id,
+                "quiz_id": quiz_id,
+                "score": score,
+                "total_points": total_points,
+                "answers": json.dumps(answers),
+                "taken_at": datetime.now().isoformat()
+            }
+            
+            self.quiz_score_collection.add(
+                documents=[f"Quiz Score: User {user_id} Course {course_id} Quiz {quiz_id}"],
+                metadatas=[score_data],
+                ids=[score_id]
+            )
+            
+            return True, score_id
+        except Exception as e:
+            return False, f"Error creating quiz score: {str(e)}"
+    
+    def get_quiz_score(self, user_id, course_id, quiz_id):
+        """Get quiz score for a specific user, course and quiz"""
+        try:
+            results = self.quiz_score_collection.query(
+                query_texts=[f"User {user_id} Course {course_id} Quiz {quiz_id}"],
+                n_results=1,
+                where={"$and": [{"user_id": user_id}, {"course_id": course_id}, {"quiz_id": quiz_id}]}
+            )
+            
+            if results['metadatas'] and len(results['metadatas'][0]) > 0:
+                score = results['metadatas'][0][0]
+                # Parse JSON string back to list
+                if 'answers' in score:
+                    score['answers'] = json.loads(score['answers'])
+                return score
+            return None
+        except Exception as e:
+            print(f"Error getting quiz score: {str(e)}")
+            return None
+    
+    def get_quiz_scores_by_user_course(self, user_id, course_id):
+        """Get all quiz scores for a user in a specific course"""
+        try:
+            results = self.quiz_score_collection.query(
+                query_texts=[f"User {user_id} Course {course_id}"],
+                n_results=100,
+                where={"$and": [{"user_id": user_id}, {"course_id": course_id}]}
+            )
+            
+            if results['metadatas']:
+                scores = [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+                # Parse JSON strings back to lists for all scores
+                for score in scores:
+                    if 'answers' in score:
+                        score['answers'] = json.loads(score['answers'])
+                return scores
+            return []
+        except Exception as e:
+            print(f"Error getting user course quiz scores: {str(e)}")
+            return []
+
+    def get_users_by_role(self, role):
+        """Get all users with a specific role"""
+        try:
+            results = self.users_collection.query(
+                query_texts=[f"Role: {role}"],
+                n_results=100,
+                where={"role": role}
+            )
+            return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+        except Exception as e:
+            print(f"Error getting users by role: {str(e)}")
+            return []
+
+    def update_user_role(self, email, new_role):
+        """Update a user's role"""
+        try:
+            user = self.get_user_by_email(email)
+            if not user:
+                return False, "User not found"
+            
+            # Update user data
+            user['role'] = new_role
+            
+            # Delete old entry and add updated one
+            self.users_collection.delete(ids=[user['user_id']])
+            self.users_collection.add(
+                documents=[f"User: {user['username']} Email: {email} Role: {new_role}"],
+                metadatas=[user],
+                ids=[user['user_id']]
+            )
+            
+            return True, "User role updated successfully"
+        except Exception as e:
+            return False, f"Error updating user role: {str(e)}"
+
+    def get_user_by_id(self, user_id):
+        """Get user by ID"""
+        try:
+            results = self.users_collection.get(ids=[user_id])
+            if results['metadatas'] and len(results['metadatas']) > 0:
+                return results['metadatas'][0]
+            return None
+        except Exception as e:
+            print(f"Error getting user: {str(e)}")
+            return None
+
+    def get_enrollments_by_course_id(self, course_id):
+        """Get all enrollments for a specific course"""
+        try:
+            results = self.enrollments_collection.query(
+                query_texts=[f"Course: {course_id}"],
+                n_results=100,
+                where={"course_id": course_id}
+            )
+            if results['metadatas']:
+                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+            return []
+        except Exception as e:
+            print(f"Error getting enrollments: {str(e)}")
+            return []
+
+    def get_quiz_scores_by_quiz_id(self, quiz_id):
+        """Get all quiz scores for a specific quiz"""
+        try:
+            results = self.quiz_score_collection.query(
+                query_texts=[f"Quiz: {quiz_id}"],
+                n_results=100,
+                where={"quiz_id": quiz_id}
+            )
+            if results['metadatas']:
+                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+            return []
+        except Exception as e:
+            print(f"Error getting quiz scores: {str(e)}")
+            return []
+
+    def get_quiz_score_by_user_and_quiz(self, user_id, quiz_id):
+        """Get quiz score for a specific user and quiz (fix ChromaDB where clause limitation)"""
+        try:
+            # Query by user_id only
+            results = self.quiz_score_collection.query(
+                query_texts=[f"User: {user_id}"],
+                n_results=10,
+                where={"user_id": user_id}
+            )
+            # Now filter in Python for quiz_id
+            if results['metadatas']:
+                all_scores = [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+                for score in all_scores:
+                    if score.get('quiz_id') == quiz_id:
+                        return score
+            return None
+        except Exception as e:
+            print(f"Error getting quiz score: {str(e)}")
+            return None
+
+    def update_user_auth_status(self, user_id, is_auth=True):
+        """Update user's authentication status"""
+        try:
+            user = self.get_user_by_id(user_id)
+            if not user:
+                return False, "User not found"
+            
+            # Update user data
+            user['is_auth'] = is_auth
+            
+            # Delete old entry and add updated one
+            self.users_collection.delete(ids=[user_id])
+            self.users_collection.add(
+                documents=[f"User: {user['username']} Email: {user['email']} Role: {user['role']}"],
+                metadatas=[user],
+                ids=[user_id]
+            )
+            
+            return True, "User auth status updated successfully"
+        except Exception as e:
+            return False, f"Error updating user auth status: {str(e)}"
+
+    def update_user_profile(self, user_id, username, full_name, password=None):
+        """Update user's profile information"""
+        try:
+            user = self.get_user_by_id(user_id)
+            if not user:
+                return False, "User not found"
+            
+            # Update user data
+            user['username'] = username
+            user['full_name'] = full_name
+            user['is_auth'] = True  # Mark as authenticated after profile update
+            
+            if password:
+                user['password'] = self.hash_password(password)
+            
+            # Delete old entry and add updated one
+            self.users_collection.delete(ids=[user_id])
+            self.users_collection.add(
+                documents=[f"User: {username} Email: {user['email']} Role: {user['role']}"],
+                metadatas=[user],
+                ids=[user_id]
+            )
+            
+            return True, "User profile updated successfully"
+        except Exception as e:
+            return False, f"Error updating user profile: {str(e)}"
+
+    # Delete methods
+    def delete_course(self, course_id):
+        """Delete a course by ID"""
+        try:
+            self.courses_collection.delete(ids=[course_id])
+            return True, "Course deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting course: {str(e)}"
+    
+    def delete_lesson(self, lesson_id):
+        """Delete a lesson by ID"""
+        try:
+            self.lessons_collection.delete(ids=[lesson_id])
+            return True, "Lesson deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting lesson: {str(e)}"
+    
+    def delete_content(self, content_id):
+        """Delete content by ID"""
+        try:
+            self.content_collection.delete(ids=[content_id])
+            return True, "Content deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting content: {str(e)}"
+    
+    def delete_quiz(self, quiz_id):
+        """Delete a quiz by ID"""
+        try:
+            self.quiz_collection.delete(ids=[quiz_id])
+            return True, "Quiz deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting quiz: {str(e)}"
+    
+    def delete_question(self, question_id):
+        """Delete a question by ID"""
+        try:
+            self.question_collection.delete(ids=[question_id])
+            return True, "Question deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting question: {str(e)}"
+    
+    def delete_choice(self, choice_id):
+        """Delete a choice by ID"""
+        try:
+            self.choice_collection.delete(ids=[choice_id])
+            return True, "Choice deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting choice: {str(e)}"
+    
+    def delete_answer(self, answer_id):
+        """Delete an answer by ID"""
+        try:
+            self.answer_collection.delete(ids=[answer_id])
+            return True, "Answer deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting answer: {str(e)}"
+    
+    def delete_quiz_score(self, quiz_score_id):
+        """Delete a quiz score by ID"""
+        try:
+            self.quiz_score_collection.delete(ids=[quiz_score_id])
+            return True, "Quiz score deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting quiz score: {str(e)}"
+    
+    def delete_enrollment(self, enrollment_id):
+        """Delete an enrollment by ID"""
+        try:
+            self.enrollments_collection.delete(ids=[enrollment_id])
+            return True, "Enrollment deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting enrollment: {str(e)}"
+    
+    def delete_progress(self, progress_id):
+        """Delete a progress record by ID"""
+        try:
+            self.progress_collection.delete(ids=[progress_id])
+            return True, "Progress deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting progress: {str(e)}"
+    
+    def get_progress_by_user_and_course(self, user_id, course_id):
+        """Get all progress records for a user in a specific course"""
+        try:
+            results = self.progress_collection.query(
+                query_texts=[f"User {user_id} Course {course_id}"],
+                n_results=100,
+                where={"$and": [{"user_id": user_id}, {"course_id": course_id}]}
+            )
+            
+            if results['metadatas']:
+                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+            return []
+        except Exception as e:
+            print(f"Error getting progress records: {str(e)}")
+            return []
 
 # Global database instance
 db = DatabaseManager()

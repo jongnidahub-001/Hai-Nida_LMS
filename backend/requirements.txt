@@ -3,3 +3,7 @@ flask-cors
 PyJWT
 chromadb
 bcrypt
+crewai[tools]
+langchain-google-genai
+autogen-agentchat
+autogen-ext[openai]

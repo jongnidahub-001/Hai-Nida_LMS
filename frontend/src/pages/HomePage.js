@@ -15,6 +15,7 @@ function HomePage() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
+  const [quizStatuses, setQuizStatuses] = useState([]);
 
   const fetchMyCourses = useCallback(async () => {
     try {
@@ -58,6 +59,60 @@ function HomePage() {
     }
   }, [getAuthHeader]);
 
+  // Fetch quiz status for each enrolled course
+  const fetchQuizStatuses = useCallback(async () => {
+    if (!myCourses || myCourses.length === 0) return;
+    const statuses = await Promise.all(myCourses.map(async (course) => {
+      try {
+        // Get quiz existence and status
+        const quizRes = await fetch(`http://localhost:5000/api/quiz/${course.course_id}`, {
+          headers: {
+            ...getAuthHeader(),
+            'Content-Type': 'application/json'
+          }
+        });
+        const quizData = await quizRes.json();
+
+        // Get quiz score
+        const scoreRes = await fetch(`http://localhost:5000/api/quiz-score/${course.course_id}`, {
+          headers: {
+            ...getAuthHeader(),
+            'Content-Type': 'application/json'
+          }
+        });
+        const scoreData = await scoreRes.json();
+
+        if (scoreData.success && scoreData.attempted) {
+          return {
+            courseName: course.course_name,
+            status: scoreData.status,
+            score: `${scoreData.score} / ${scoreData.total_points}`
+          };
+        } else if (quizData.success && quizData.quiz) {
+          // Quiz exists but not attempted
+          return {
+            courseName: course.course_name,
+            status: 'Not Attempted',
+            score: '-'
+          };
+        } else {
+          return {
+            courseName: course.course_name,
+            status: 'No Quiz',
+            score: '-'
+          };
+        }
+      } catch (e) {
+        return {
+          courseName: course.course_name,
+          status: 'Error',
+          score: '-'
+        };
+      }
+    }));
+    setQuizStatuses(statuses);
+  }, [myCourses, getAuthHeader]);
+
   useEffect(() => {
     // Test the protected API endpoint
     fetch('http://localhost:5000/api/hello', {
@@ -76,6 +131,15 @@ function HomePage() {
     // Fetch all courses for the slide
     fetchAllCourses();
   }, [getAuthHeader, fetchMyCourses, fetchAllCourses]);
+
+  // Only fetch quiz statuses when myCourses changes and is loaded
+  useEffect(() => {
+    if (myCourses && myCourses.length > 0) {
+      fetchQuizStatuses();
+    } else {
+      setQuizStatuses([]);
+    }
+  }, [myCourses, fetchQuizStatuses]);
 
   // Auto-slide effect for featured courses
   useEffect(() => {
@@ -108,8 +172,12 @@ function HomePage() {
   };
 
   const getButtonText = (course) => {
-    if (course.enrollment_status === 'Complete') return 'Completed';
-    if (course.progress.progress_percentage > 0) return 'Resume';
+    if (course.enrollment_status === 'Complete') {
+      return 'Completed';
+    }
+    if (course.progress.progress_percentage > 0) {
+      return 'Resume';
+    }
     return 'Learn';
   };
 
@@ -118,7 +186,8 @@ function HomePage() {
       return {
         backgroundColor: '#48c774',
         color: '#000',
-        border: 'none'
+        border: 'none',
+        fontWeight: '500'
       };
     }
     if (course.progress.progress_percentage > 0) {
@@ -387,19 +456,30 @@ function HomePage() {
         </div>
       </div>
 
-      {/* Classmate */}
+      {/* My Quiz Status */}
       <div className="container mt-4 mb-6">
-        <div className="box home-classmate-card">
-          <div className="is-size-5 has-text-weight-bold mb-3">CLASSMATE</div>
-          <div className="columns is-mobile is-multiline">
-            {[0,1,2,3,4,5].map(idx => (
-              <div className="column is-2 has-text-centered" key={idx}>
-                <div className="home-classmate-avatar mb-2"></div>
-                <div className="is-size-7 has-text-weight-bold">John Doe</div>
-                <div className="is-size-7">Sasin, Student</div>
-                <div className="is-size-7 has-text-grey">ex.sasinproject@actor<br />02-xxxxxxx</div>
+        <div className="box home-courses-card" style={{ borderRadius: '12px', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <div className="is-size-5 has-text-weight-bold mb-3">MY QUIZ STATUS</div>
+          <div className="columns is-multiline">
+            {quizStatuses.length === 0 ? (
+              <div className="column is-12">
+                <div className="has-text-centered is-size-6 has-text-grey">No quiz data</div>
               </div>
-            ))}
+            ) : (
+              quizStatuses.map((qs, idx) => (
+                <div className="column is-4" key={idx}>
+                  <div className="box home-course-row" style={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: '10px', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <div className="mb-2">
+                      <div className="is-size-6 has-text-weight-bold">{qs.courseName}</div>
+                    </div>
+                    <div className="mb-2">
+                      <span className="tag is-medium" style={{ backgroundColor: qs.status === 'Completed' ? '#48c774' : (qs.status === 'Not Attempted' ? '#ffe082' : '#e0e0e0'), color: '#222' }}>{qs.status}</span>
+                    </div>
+                    <div className="is-size-7 has-text-grey">Score: <span className="has-text-weight-bold" style={{ color: '#222' }}>{qs.score || '-'}</span></div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

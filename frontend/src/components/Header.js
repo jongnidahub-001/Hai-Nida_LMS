@@ -18,6 +18,50 @@ function Header() {
     return location.pathname === path;
   };
 
+  const renderNavigation = () => {
+    if (user?.role === 'admin') {
+      return (
+        <>
+          <a className={`navbar-item navbar-link-item ${isActive('/admin') ? 'is-active' : ''}`} 
+             href="#users" 
+             onClick={(e) => { e.preventDefault(); navigate('/admin'); }} 
+             style={{ cursor: 'pointer' }}>
+            All Users
+          </a>
+          <a className={`navbar-item navbar-link-item ${isActive('/admin/courses') ? 'is-active' : ''}`} 
+             href="#courses" 
+             onClick={(e) => { e.preventDefault(); navigate('/admin/courses'); }} 
+             style={{ cursor: 'pointer' }}>
+            All Courses
+          </a>
+          <a className={`navbar-item navbar-link-item ${isActive('/admin/quizzes') ? 'is-active' : ''}`} 
+             href="#quizzes" 
+             onClick={(e) => { e.preventDefault(); navigate('/admin/quizzes'); }} 
+             style={{ cursor: 'pointer' }}>
+            All Quizzes
+          </a>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <a className={`navbar-item navbar-link-item ${isActive('/home') ? 'is-active' : ''}`} 
+           href="#dashboard" 
+           onClick={(e) => { e.preventDefault(); navigate('/home'); }} 
+           style={{ cursor: 'pointer' }}>
+          Dashboard
+        </a>
+        <a className={`navbar-item navbar-link-item ${isActive('/courses') ? 'is-active' : ''}`} 
+           href="#courses" 
+           onClick={(e) => { e.preventDefault(); navigate('/courses'); }} 
+           style={{ cursor: 'pointer' }}>
+          All Courses
+        </a>
+      </>
+    );
+  };
+
   return (
     <nav className="navbar app-header" role="navigation">
       <div className="navbar-brand">
@@ -31,10 +75,7 @@ function Header() {
           <div className="navbar-item">
             <input className="input is-rounded search-input" type="search" placeholder="Search" />
           </div>
-          <a className={`navbar-item navbar-link-item ${isActive('/home') ? 'is-active' : ''}`} href="#dashboard" onClick={(e) => { e.preventDefault(); navigate('/home'); }} style={{ cursor: 'pointer' }}>Dashboard</a>
-          <a className={`navbar-item navbar-link-item ${isActive('/courses') ? 'is-active' : ''}`} href="#courses" onClick={(e) => { e.preventDefault(); navigate('/courses'); }} style={{ cursor: 'pointer' }}>All Courses</a>
-          <a className="navbar-item navbar-link-item" href="#quiz">Take a Quiz</a>
-          <a className="navbar-item navbar-link-item" href="#about">About us</a>
+          {renderNavigation()}
         </div>
         <div className="navbar-end">
           <div className="navbar-item">

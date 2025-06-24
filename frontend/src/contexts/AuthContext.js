@@ -38,7 +38,13 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         setIsAuthenticated(true);
-        setUser({ username: data.username });
+        setUser({
+          username: data.username,
+          role: data.role,
+          email: data.email,
+          full_name: data.full_name,
+          is_auth: data.is_auth
+        });
       } else {
         // Token is invalid, remove it
         localStorage.removeItem('authToken');
@@ -54,14 +60,14 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
-  const login = async (username, password) => {
+  const login = async (email, password) => {
     try {
       const response = await fetch('http://localhost:5000/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ email, password })
       });
 
       const data = await response.json();
@@ -69,8 +75,14 @@ export const AuthProvider = ({ children }) => {
       if (data.success) {
         localStorage.setItem('authToken', data.token);
         setIsAuthenticated(true);
-        setUser({ username: data.username });
-        return { success: true, message: data.message };
+        setUser({
+          username: data.username,
+          role: data.role,
+          email: data.email,
+          full_name: data.full_name,
+          is_auth: data.is_auth
+        });
+        return { success: true, message: data.message, user: data };
       } else {
         return { success: false, message: data.message };
       }
