@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
 
 // Add custom styles for animations
@@ -410,7 +411,7 @@ function AdminAllCourse() {
 
   const fetchCourses = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/courses', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/courses`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -418,6 +419,7 @@ function AdminAllCourse() {
       });
       if (response.ok) {
         const data = await response.json();
+        console.log(data);
         setCourses(data.courses || []);
       } else {
         console.error('Failed to fetch courses');
@@ -504,7 +506,7 @@ function AdminAllCourse() {
       };
       setCourseParams(params);
       
-      const response = await fetch('http://localhost:5000/api/create-course/preview', {
+      const response = await fetch(`${API_BASE_URL}/api/create-course/preview`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
@@ -547,7 +549,7 @@ function AdminAllCourse() {
     
     setUploading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/create-course/preview', {
+      const response = await fetch(`${API_BASE_URL}/api/create-course/preview`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
@@ -632,7 +634,7 @@ function AdminAllCourse() {
     
     setCreatingQuiz(true);
     try {
-      const response = await fetch('http://localhost:5000/api/create-quiz/preview', {
+      const response = await fetch(`${API_BASE_URL}/api/create-quiz/preview`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
@@ -695,7 +697,7 @@ function AdminAllCourse() {
 
       console.log('Submitting combined data:', combinedData);
 
-      const response = await fetch('http://localhost:5000/api/create-quiz/submit', {
+      const response = await fetch(`${API_BASE_URL}/api/create-quiz/submit`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
@@ -732,6 +734,7 @@ function AdminAllCourse() {
     course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (course.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+  console.log(filteredCourses);
 
   const getDifficultyColor = (difficulty) => {
     switch (difficulty?.toLowerCase()) {
@@ -1293,7 +1296,7 @@ function AdminAllCourse() {
                         <div className="is-flex is-justify-content-space-between is-align-items-center">
                           <span className="tag is-light">
                             <i className="fas fa-users mr-1"></i>
-                            {course.enrolled_count || 0} enrolled
+                            {course.enrollment_count || 0} enrolled
                           </span>
                           <button
                             className="button is-small is-info"

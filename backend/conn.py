@@ -12,18 +12,27 @@ class DatabaseManager:
         self.persist_directory = "./chroma_db"
         
         # Create directory if it doesn't exist
-        if not os.path.exists(self.persist_directory):
-            os.makedirs(self.persist_directory)
+
+        # if not os.path.exists(self.persist_directory):
+        #     print(f"Creating directory: {self.persist_directory}")
+        #     os.makedirs(self.persist_directory)
         
         try:
+            
             # Initialize ChromaDB client with settings
-            self.client = chromadb.PersistentClient(
-                path=self.persist_directory,
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
-            )
+            # Use environment variable for host, fallback to localhost for local development
+            chroma_host = os.environ.get('CHROMA_HOST', 'localhost')
+            chroma_port = int(os.environ.get('CHROMA_PORT', '8000'))
+            print(f"Setting up chroma client with host: {chroma_host} and port: {chroma_port}")
+            self.client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
+
+            # self.client = chromadb.PersistentClient(
+            #     path=self.persist_directory, 
+            #     settings=Settings(
+            #         anonymized_telemetry=False,
+            #         allow_reset=True
+            #     )
+            # )
             
             # Get or create collections
             self._initialize_collections()
@@ -31,19 +40,23 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error initializing database: {str(e)}")
             # If there's an error, try to reset the database
-            if os.path.exists(self.persist_directory):
-                import shutil
-                shutil.rmtree(self.persist_directory)
-                os.makedirs(self.persist_directory)
+            # if os.path.exists(self.persist_directory):
+            #     import shutil
+            #     shutil.rmtree(self.persist_directory)
+            #     os.makedirs(self.persist_directory)
             
             # Reinitialize client
-            self.client = chromadb.PersistentClient(
-                path=self.persist_directory,
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
-            )
+            # Use environment variable for host, fallback to localhost for local development
+            chroma_host = os.environ.get('CHROMA_HOST', 'localhost')
+            chroma_port = int(os.environ.get('CHROMA_PORT', '8000'))
+            self.client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
+            # self.client = chromadb.PersistentClient(
+            #     path=self.persist_directory,
+            #     settings=Settings(
+            #         anonymized_telemetry=False,
+            #         allow_reset=True
+            #     )
+            # )
             self._initialize_collections()
     
     def _initialize_collections(self):
@@ -51,17 +64,23 @@ class DatabaseManager:
         collections = [
             "users", "courses", "lessons", "content", 
             "enrollments", "progress", "quiz", "question", 
-            "choice", "answer", "quiz_score"
+            "choice", "answer", "quiz_score", "vector"
         ]
-        
+
+
         for collection_name in collections:
             try:
                 collection = self.client.get_collection(collection_name)
+                print(collection)
                 setattr(self, f"{collection_name}_collection", collection)
-            except:
+                print(f"Collection: {collection_name} already exists")
+            except Exception as e:
+                print(f"Error initializing collection: {e}")
+                print(f"Creating collection: {collection_name}")
                 collection = self.client.create_collection(collection_name)
                 setattr(self, f"{collection_name}_collection", collection)
                 print(f"Created collection: {collection_name}")
+        
     
     def hash_password(self, password):
         """Hash password using bcrypt"""
@@ -1162,13 +1181,13 @@ class DatabaseManager:
     def get_questions_by_quiz_id(self, quiz_id):
         """Get all questions for a quiz"""
         try:
-            results = self.question_collection.query(
-                query_texts=[f"Quiz: {quiz_id}"],
-                n_results=100,
+            # Use .get() method for exact metadata filtering instead of semantic search
+            results = self.question_collection.get(
                 where={"quiz_id": quiz_id}
             )
+            
             if results['metadatas']:
-                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+                return results['metadatas']
             return []
         except Exception as e:
             print(f"Error getting questions: {str(e)}")
@@ -1201,13 +1220,13 @@ class DatabaseManager:
     def get_choices_by_question_id(self, question_id):
         """Get all choices for a question"""
         try:
-            results = self.choice_collection.query(
-                query_texts=[f"Question: {question_id}"],
-                n_results=20,
+            # Use .get() method for exact metadata filtering instead of semantic search
+            results = self.choice_collection.get(
                 where={"question_id": question_id}
             )
+            
             if results['metadatas']:
-                return [item for sublist in results['metadatas'] for item in sublist] if isinstance(results['metadatas'][0], list) else results['metadatas']
+                return results['metadatas']
             return []
         except Exception as e:
             print(f"Error getting choices: {str(e)}")
@@ -1238,13 +1257,13 @@ class DatabaseManager:
     def get_answer_by_question_id(self, question_id):
         """Get answer for a question"""
         try:
-            results = self.answer_collection.query(
-                query_texts=[f"Question: {question_id}"],
-                n_results=1,
+            # Use .get() method for exact metadata filtering instead of semantic search
+            results = self.answer_collection.get(
                 where={"question_id": question_id}
             )
-            if results['metadatas'] and len(results['metadatas'][0]) > 0:
-                return results['metadatas'][0][0]
+            
+            if results['metadatas'] and len(results['metadatas']) > 0:
+                return results['metadatas'][0]
             return None
         except Exception as e:
             print(f"Error getting answer: {str(e)}")
@@ -1331,14 +1350,13 @@ class DatabaseManager:
     def get_quiz_score(self, user_id, course_id, quiz_id):
         """Get quiz score for a specific user, course and quiz"""
         try:
-            results = self.quiz_score_collection.query(
-                query_texts=[f"User {user_id} Course {course_id} Quiz {quiz_id}"],
-                n_results=1,
+            # Use .get() method for exact metadata filtering instead of semantic search
+            results = self.quiz_score_collection.get(
                 where={"$and": [{"user_id": user_id}, {"course_id": course_id}, {"quiz_id": quiz_id}]}
             )
             
-            if results['metadatas'] and len(results['metadatas'][0]) > 0:
-                score = results['metadatas'][0][0]
+            if results['metadatas'] and len(results['metadatas']) > 0:
+                score = results['metadatas'][0]
                 # Parse JSON string back to list
                 if 'answers' in score:
                     score['answers'] = json.loads(score['answers'])
@@ -1460,6 +1478,8 @@ class DatabaseManager:
                 for score in all_scores:
                     if score.get('quiz_id') == quiz_id:
                         return score
+                    
+            
             return None
         except Exception as e:
             print(f"Error getting quiz score: {str(e)}")
@@ -1610,6 +1630,37 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting progress records: {str(e)}")
             return []
-
+    def add_vector(self, course_id, lesson_id, content_vector):
+        """Add a vector to the vector collection"""
+        try:
+            self.vector_collection.add(
+                documents=[content_vector],
+                metadatas=[{'course_id': course_id, 'lesson_id': lesson_id}],
+                ids=[lesson_id]
+            )
+        except Exception as e:
+            print(f"Error adding vector: {str(e)}")
+            return False
+    def get_vector(self, course_id):
+        """Get a vector from the vector collection"""
+        try:
+            results = self.vector_collection.query(
+                query_texts=[f"*"],
+                where={"course_id": course_id}
+            )
+            if results['documents']:
+                return results['documents']
+            return None
+        except Exception as e:
+            print(f"Error getting vector: {str(e)}")
+            return None
+    def delete_vector(self, course_id, lesson_id):
+        """Delete a vector from the vector collection"""
+        try:
+            self.vector_collection.delete(ids=[lesson_id])
+            return True
+        except Exception as e:
+            print(f"Error deleting vector: {str(e)}")
+            return False
 # Global database instance
 db = DatabaseManager()

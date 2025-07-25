@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 import './QuizPage.css';
 
 function QuizPage() {
@@ -18,6 +19,7 @@ function QuizPage() {
   const [submitting, setSubmitting] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [score, setScore] = useState(null);
+  const [evaluatingAnswers, setEvaluatingAnswers] = useState(false);
 
   useEffect(() => {
     fetchQuiz();
@@ -26,7 +28,7 @@ function QuizPage() {
   const fetchQuiz = async () => {
     try {
       // Fetch quiz for the course
-      const quizResponse = await fetch(`http://localhost:5000/api/quiz/${courseId}`, {
+      const quizResponse = await fetch(`${API_BASE_URL}/api/quiz/${courseId}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -39,7 +41,7 @@ function QuizPage() {
           setQuiz(quizData.quiz);
           
           // Fetch questions for the quiz
-          const questionsResponse = await fetch(`http://localhost:5000/api/quiz/${quizData.quiz.quiz_id}/questions`, {
+          const questionsResponse = await fetch(`${API_BASE_URL}/api/quiz/${quizData.quiz.quiz_id}/questions`, {
             headers: {
               ...getAuthHeader(),
               'Content-Type': 'application/json'
@@ -52,19 +54,23 @@ function QuizPage() {
               // For each question, fetch its choices or answer
               const questionsWithDetails = await Promise.all(
                 questionsData.questions.map(async (question) => {
-                  if (question.question_type === 'choices') {
-                    const choicesResponse = await fetch(`http://localhost:5000/api/question/${question.question_id}/choices`, {
+                  if (question.question_type === 'choices' || question.question_type === 'Multiple Choice') {
+                    const choicesResponse = await fetch(`${API_BASE_URL}/api/question/${question.question_id}/choices`, {
                       headers: {
                         ...getAuthHeader(),
                         'Content-Type': 'application/json'
                       }
                     });
+                    
                     if (choicesResponse.ok) {
                       const choicesData = await choicesResponse.json();
-                      return { ...question, choices: choicesData.choices };
+                      return { ...question, choices: choicesData.choices || [] };
+                    } else {
+                      console.error('Failed to fetch choices for question:', question.question_id);
+                      return { ...question, choices: [] };
                     }
                   } else {
-                    const answerResponse = await fetch(`http://localhost:5000/api/question/${question.question_id}/answer`, {
+                    const answerResponse = await fetch(`${API_BASE_URL}/api/question/${question.question_id}/answer`, {
                       headers: {
                         ...getAuthHeader(),
                         'Content-Type': 'application/json'
@@ -101,44 +107,157 @@ function QuizPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
+    setEvaluatingAnswers(true);
     
     try {
       // Calculate score
       let totalScore = 0;
       let totalPoints = 0;
       
-      questions.forEach(question => {
+      // Process each question
+      for (const question of questions) {
         totalPoints += question.points || 1;
         
-        if (question.question_type === 'choices') {
+        if (question.question_type === 'choices' || question.question_type === 'Multiple Choice') {
           const selectedChoice = question.choices.find(c => c.choice_id === answers[question.question_id]);
           if (selectedChoice?.is_correct) {
             totalScore += question.points || 1;
           }
-        } else if (question.question_type === 'fill') {
-          // For fill in the blank, do exact match
-          if (answers[question.question_id]?.toLowerCase() === question.correct_answer?.toLowerCase()) {
-            totalScore += question.points || 1;
+        } else if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank' || 
+                   question.question_type === 'subjective' || question.question_type === 'Subjective') {
+          // Use AI evaluation for fill-in-the-blank and subjective questions
+          const userAnswer = answers[question.question_id];
+          
+          if (userAnswer && userAnswer.trim() !== '') {
+            try {
+              const evaluationResponse = await fetch(`${API_BASE_URL}/api/quiz/evaluate-answer`, {
+                method: 'POST',
+                headers: {
+                  ...getAuthHeader(),
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  question_id: question.question_id,
+                  question_text: question.question_text,
+                  correct_answer: question.correct_answer,
+                  user_answer: userAnswer,
+                  question_type: question.question_type
+                })
+              });
+              
+              if (evaluationResponse.ok) {
+                const evaluationData = await evaluationResponse.json();
+                if (evaluationData.success && evaluationData.is_correct) {
+                  totalScore += question.points || 1;
+                }
+              } else {
+                console.error('Failed to evaluate answer for question:', question.question_id);
+                // Fallback to simple string matching for fill-in-the-blank
+                if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
+                  if (userAnswer.toLowerCase() === question.correct_answer?.toLowerCase()) {
+                    totalScore += question.points || 1;
+                  }
+                }
+              }
+            } catch (evalError) {
+              console.error('Error evaluating answer:', evalError);
+              // Fallback to simple string matching for fill-in-the-blank
+              if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
+                if (userAnswer.toLowerCase() === question.correct_answer?.toLowerCase()) {
+                  totalScore += question.points || 1;
+                }
+              }
+            }
           }
         }
-        // Subjective questions are not auto-graded
-      });
+      }
+      
+      setEvaluatingAnswers(false);
+      
+      // Convert answers object to array format expected by backend
+      const answersArray = await Promise.all(Object.entries(answers).map(async ([questionId, answer]) => {
+        const question = questions.find(q => q.question_id.toString() === questionId.toString());
+        let isCorrect = false;
+        
+        if (question) {
+          if (question.question_type === 'choices' || question.question_type === 'Multiple Choice') {
+            const selectedChoice = question.choices.find(c => c.choice_id === answer);
+            isCorrect = selectedChoice?.is_correct || false;
+          } else if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank' || 
+                     question.question_type === 'subjective' || question.question_type === 'Subjective') {
+            if (answer && answer.trim() !== '') {
+              try {
+                const evaluationResponse = await fetch(`${API_BASE_URL}/api/quiz/evaluate-answer`, {
+                  method: 'POST',
+                  headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    question_id: question.question_id,
+                    question_text: question.question_text,
+                    correct_answer: question.correct_answer,
+                    user_answer: answer,
+                    question_type: question.question_type
+                  })
+                });
+                
+                if (evaluationResponse.ok) {
+                  const evaluationData = await evaluationResponse.json();
+                  isCorrect = evaluationData.success && evaluationData.is_correct;
+                } else {
+                  // Fallback to simple string matching for fill-in-the-blank
+                  if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
+                    isCorrect = answer.toLowerCase() === question.correct_answer?.toLowerCase();
+                  }
+                }
+              } catch (evalError) {
+                console.error('Error evaluating answer:', evalError);
+                // Fallback to simple string matching for fill-in-the-blank
+                if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
+                  isCorrect = answer.toLowerCase() === question.correct_answer?.toLowerCase();
+                }
+              }
+            }
+          }
+        }
+        
+        return {
+          question_id: questionId,
+          answer: answer,
+          type: question ? question.question_type : 'unknown',
+          result: isCorrect
+        };
+      }));
+      
+      const submissionData = {
+        course_id: courseId,
+        quiz_id: quiz.quiz_id,
+        score: totalScore,
+        total_points: totalPoints,
+        answers: answersArray
+      };
+      
+      console.log('Submitting quiz data:', submissionData);
       
       // Submit quiz score
-      const response = await fetch('http://localhost:5000/api/quiz/submit', {
+      const response = await fetch(`${API_BASE_URL}/api/quiz/submit`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          course_id: courseId,
-          quiz_id: quiz.quiz_id,
-          score: totalScore,
-          total_points: totalPoints,
-          answers: answers
-        })
+        body: JSON.stringify(submissionData)
       });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        setError(`Failed to submit quiz: ${response.status} ${errorText}`);
+        return;
+      }
       
       const data = await response.json();
       
@@ -157,15 +276,27 @@ function QuizPage() {
       setError('Error submitting quiz. Please try again.');
     } finally {
       setSubmitting(false);
+      setEvaluatingAnswers(false);
     }
   };
 
   const renderQuestion = (question) => {
     switch (question.question_type) {
       case 'choices':
+      case 'Multiple Choice':
+        if (!question.choices || question.choices.length === 0) {
+          return (
+            <div className="choices">
+              <div className="notification is-warning">
+                <p>No choices available for this question. Please check the quiz data.</p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div className="choices">
-            {question.choices?.map(choice => (
+            {question.choices.map(choice => (
               <div key={choice.choice_id} className="field">
                 <div className="control">
                   <label className="radio">
@@ -185,6 +316,7 @@ function QuizPage() {
         );
       
       case 'subjective':
+      case 'Subjective':
         return (
           <div className="field">
             <div className="control">
@@ -199,6 +331,7 @@ function QuizPage() {
         );
       
       case 'fill':
+      case 'Fill in the Blank':
         return (
           <div className="field">
             <div className="control">
@@ -214,7 +347,20 @@ function QuizPage() {
         );
       
       default:
-        return null;
+        return (
+          <div className="field">
+            <div className="control">
+              <p className="has-text-danger">Unknown question type: {question.question_type}</p>
+              <input
+                className="input"
+                type="text"
+                placeholder="Type your answer here..."
+                value={answers[question.question_id] || ''}
+                onChange={(e) => handleAnswerChange(question.question_id, e.target.value)}
+              />
+            </div>
+          </div>
+        );
     }
   };
 
@@ -336,6 +482,7 @@ function QuizPage() {
                 <button 
                   className="button is-light"
                   onClick={() => setCurrentQuestion(prev => prev - 1)}
+                  disabled={submitting}
                 >
                   Previous Question
                 </button>
@@ -345,6 +492,7 @@ function QuizPage() {
                 <button 
                   className="button is-primary"
                   onClick={() => setCurrentQuestion(prev => prev + 1)}
+                  disabled={submitting}
                 >
                   Next Question
                 </button>
@@ -354,10 +502,16 @@ function QuizPage() {
                   onClick={handleSubmit}
                   disabled={submitting}
                 >
-                  Submit Quiz
+                  {evaluatingAnswers ? 'Evaluating Answers...' : 'Submit Quiz'}
                 </button>
               )}
             </div>
+            
+            {evaluatingAnswers && (
+              <div className="evaluation-message">
+                <p>AI is evaluating your answers, please wait...</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

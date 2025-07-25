@@ -4,6 +4,7 @@ import './HomePage.css';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 
 function HomePage() {
   const { user, logout, getAuthHeader } = useAuth();
@@ -19,7 +20,7 @@ function HomePage() {
 
   const fetchMyCourses = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/my-courses', {
+      const response = await fetch(`${API_BASE_URL}/api/my-courses`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -41,7 +42,7 @@ function HomePage() {
 
   const fetchAllCourses = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/courses', {
+      const response = await fetch(`${API_BASE_URL}/api/courses`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -65,7 +66,7 @@ function HomePage() {
     const statuses = await Promise.all(myCourses.map(async (course) => {
       try {
         // Get quiz existence and status
-        const quizRes = await fetch(`http://localhost:5000/api/quiz/${course.course_id}`, {
+        const quizRes = await fetch(`${API_BASE_URL}/api/quiz/${course.course_id}`, {
           headers: {
             ...getAuthHeader(),
             'Content-Type': 'application/json'
@@ -74,7 +75,7 @@ function HomePage() {
         const quizData = await quizRes.json();
 
         // Get quiz score
-        const scoreRes = await fetch(`http://localhost:5000/api/quiz-score/${course.course_id}`, {
+        const scoreRes = await fetch(`${API_BASE_URL}/api/quiz-score/${course.course_id}`, {
           headers: {
             ...getAuthHeader(),
             'Content-Type': 'application/json'
@@ -115,7 +116,7 @@ function HomePage() {
 
   useEffect(() => {
     // Test the protected API endpoint
-    fetch('http://localhost:5000/api/hello', {
+    fetch(`${API_BASE_URL}/api/hello`, {
       headers: {
         ...getAuthHeader(),
         'Content-Type': 'application/json'

@@ -1,9 +1,16 @@
-Flask
-flask-cors
-PyJWT
-chromadb
-bcrypt
-crewai[tools]
-langchain-google-genai
-autogen-agentchat
-autogen-ext[openai]
+autogen-agentchat==0.6.1
+autogen-ext[openai]==0.6.1
+fastapi==0.115.9
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.11.5
+python-jose[cryptography]==3.3.0
+PyJWT==2.10.1
+# Keep existing dependencies from the original requirements.txt
+chromadb==1.0.15
+#langchain==0.0.350
+langchain-community==0.3.25
+langchain-google-genai==2.1.5
+langchain-chroma==0.2.4
+pypdf==5.6.0
+#pydantic==2.5.1 

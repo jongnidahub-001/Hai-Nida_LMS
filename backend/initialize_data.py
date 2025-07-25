@@ -4,8 +4,9 @@ Script to initialize dummy data for the course management system
 Run this script to populate the ChromaDB with sample data
 """
 
-from conn import db
+from conn import DatabaseManager
 
+db = DatabaseManager()
 def main():
     print("Initializing Course Management System Data...")
     print("=" * 50)

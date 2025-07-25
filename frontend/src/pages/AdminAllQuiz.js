@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
 
 function AdminAllQuiz() {
@@ -26,7 +27,7 @@ function AdminAllQuiz() {
 
   const fetchQuizScores = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/quiz-scores?page=${currentPage}&limit=${itemsPerPage}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/quiz-scores?page=${currentPage}&limit=${itemsPerPage}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'

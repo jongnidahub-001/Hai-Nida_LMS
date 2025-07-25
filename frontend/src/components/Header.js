@@ -34,12 +34,14 @@ function Header() {
              style={{ cursor: 'pointer' }}>
             All Courses
           </a>
+          {/*
           <a className={`navbar-item navbar-link-item ${isActive('/admin/quizzes') ? 'is-active' : ''}`} 
              href="#quizzes" 
              onClick={(e) => { e.preventDefault(); navigate('/admin/quizzes'); }} 
              style={{ cursor: 'pointer' }}>
             All Quizzes
           </a>
+          */}
         </>
       );
     }

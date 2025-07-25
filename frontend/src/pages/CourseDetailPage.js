@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './CourseDetailPage.css';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 
 function CourseDetailPage() {
   const { courseId } = useParams();
@@ -25,7 +26,7 @@ function CourseDetailPage() {
 
   const fetchCourseDetails = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/course-progress/${courseId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/course-progress/${courseId}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -52,7 +53,7 @@ function CourseDetailPage() {
 
   const fetchCourseContent = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/course-content/${courseId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/course-content/${courseId}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -85,7 +86,7 @@ function CourseDetailPage() {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:5000/api/enroll', {
+      const response = await fetch(`${API_BASE_URL}/api/enroll`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
@@ -117,7 +118,7 @@ function CourseDetailPage() {
 
   const handleLessonComplete = async (lessonId) => {
     try {
-      const response = await fetch('http://localhost:5000/api/lesson-complete', {
+      const response = await fetch(`${API_BASE_URL}/api/lesson-complete`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),

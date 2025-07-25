@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
 
 function AdminUserDetail() {
@@ -13,6 +14,8 @@ function AdminUserDetail() {
   const [quizResults, setQuizResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('courses');
+  const [selectedQuizAnswers, setSelectedQuizAnswers] = useState(null);
+  const [showAnswersModal, setShowAnswersModal] = useState(false);
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -25,7 +28,7 @@ function AdminUserDetail() {
   const fetchUserDetail = async () => {
     try {
       // Fetch user details
-      const userResponse = await fetch(`http://localhost:5000/api/admin/user/${userId}`, {
+      const userResponse = await fetch(`${API_BASE_URL}/api/admin/user/${userId}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -37,6 +40,7 @@ function AdminUserDetail() {
         setUserDetail(userData.user);
         setEnrolledCourses(userData.enrolled_courses || []);
         setQuizResults(userData.quiz_results || []);
+
       } else {
         console.error('Failed to fetch user details');
       }
@@ -63,6 +67,94 @@ function AdminUserDetail() {
       case 'completed': return 'is-success';
       default: return 'is-light';
     }
+  };
+
+  const handleViewAnswers = async (quiz) => {
+    try {
+      const answers = JSON.parse(quiz.answers);
+      setLoading(true);
+      
+      // Fetch quiz questions to get question text
+      const quizResponse = await fetch(`${API_BASE_URL}/api/quiz/${quiz.quiz_id}/questions`, {
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!quizResponse.ok) {
+        throw new Error('Failed to fetch quiz questions');
+      }
+      
+      const quizData = await quizResponse.json();
+      const questions = quizData.questions || [];
+      
+      // Create a map of question_id to question data
+      const questionMap = {};
+      questions.forEach(q => {
+        questionMap[q.question_id] = q;
+      });
+      
+      // Enhance answers with question text and choice text for multiple choice
+      const enhancedAnswers = await Promise.all(
+        answers.map(async (answer) => {
+          const questionData = questionMap[answer.question_id];
+          let enhancedAnswer = {
+            question_id: answer.question_id,
+            answer: answer.answer,
+            type: answer.type || 'Unknown',
+            result: answer.result === true || answer.result === 'true', // Ensure boolean
+            question_text: questionData ? questionData.question_text : 'Question not found'
+          };
+          
+          // If it's multiple choice, fetch choices to map choice ID to choice text
+          if (enhancedAnswer.type === 'Multiple Choice') {
+            try {
+              const choicesResponse = await fetch(`${API_BASE_URL}/api/question/${answer.question_id}/choices`, {
+                headers: {
+                  ...getAuthHeader(),
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (choicesResponse.ok) {
+                const choicesData = await choicesResponse.json();
+                const choices = choicesData.choices || [];
+                
+                // Find the choice that matches the user's answer
+                const selectedChoice = choices.find(choice => choice.choice_id === answer.answer);
+                enhancedAnswer.choice_text = selectedChoice ? selectedChoice.choice_text : 'Choice not found';
+              } else {
+                enhancedAnswer.choice_text = 'Unable to load choice';
+              }
+            } catch (error) {
+              console.error('Error fetching choices:', error);
+              enhancedAnswer.choice_text = 'Error loading choice';
+            }
+          }
+          
+          return enhancedAnswer;
+        })
+      );
+      
+      setSelectedQuizAnswers({
+        course_name: quiz.course_name,
+        score: quiz.score,
+        total_points: quiz.total_points,
+        answers: enhancedAnswers
+      });
+      setShowAnswersModal(true);
+    } catch (error) {
+      console.error('Error loading quiz answers:', error);
+      alert('Failed to load quiz answers. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeAnswersModal = () => {
+    setShowAnswersModal(false);
+    setSelectedQuizAnswers(null);
   };
 
   if (loading) {
@@ -290,12 +382,20 @@ function AdminUserDetail() {
                             </span>
                           </td>
                           <td>
-                            <button 
-                              className="button is-small is-info"
-                              onClick={() => navigate(`/admin/course/${quiz.course_id}`)}
-                            >
-                              View Course
-                            </button>
+                            <div className="buttons">
+                              <button 
+                                className="button is-small is-info mr-2"
+                                onClick={() => navigate(`/admin/course/${quiz.course_id}`)}
+                              >
+                                View Course
+                              </button>
+                              <button 
+                                className="button is-small is-success"
+                                onClick={() => handleViewAnswers(quiz)}
+                              >
+                                View Answers
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -307,6 +407,105 @@ function AdminUserDetail() {
           )}
         </div>
       </div>
+
+             {/* Quiz Answers Modal */}
+       {showAnswersModal && (
+         <div className="modal is-active">
+           <div className="modal-background" onClick={closeAnswersModal}></div>
+           <div className="modal-content" style={{ maxHeight: '80vh', overflow: 'auto' }}>
+             <div className="box">
+               <div className="is-flex is-justify-content-space-between is-align-items-center mb-4">
+                 <h3 className="is-size-4 has-text-weight-bold">Quiz Answers</h3>
+                 <button 
+                   className="button is-small is-danger"
+                   onClick={closeAnswersModal}
+                 >
+                   <span className="icon">
+                     <i className="fas fa-times"></i>
+                   </span>
+                 </button>
+               </div>
+               
+               <div className="box is-shadowless has-background-light mb-4">
+                 <div className="is-size-6 has-text-weight-bold mb-2">{selectedQuizAnswers.course_name}</div>
+                 <div className="is-flex is-justify-content-space-between">
+                   <span>Score: <strong>{selectedQuizAnswers.score} / {selectedQuizAnswers.total_points}</strong></span>
+                   <span>Percentage: <strong>{Math.round((selectedQuizAnswers.score / selectedQuizAnswers.total_points) * 100)}%</strong></span>
+                 </div>
+               </div>
+
+               <div className="content">
+                 <h4 className="is-size-5 has-text-weight-bold mb-3">User Answers</h4>
+                 {selectedQuizAnswers.answers.map((answer, index) => (
+                   <div key={index} className="box is-shadowless has-background-white-ter mb-3">
+                     <div className="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                       <span className="is-size-6 has-text-weight-bold">Question {index + 1}</span>
+                       <div className="is-flex is-align-items-center">
+                         <span className={`tag is-small mr-2 ${answer.type === 'Multiple Choice' ? 'is-info' : answer.type === 'Subjective' ? 'is-warning' : answer.type === 'Fill in the Blank' ? 'is-primary' : 'is-light'}`}>
+                           {answer.type || 'Unknown'}
+                         </span>
+                         <span className={`tag ${answer.result === true ? 'is-success' : 'is-danger'}`}>
+                           {answer.result === true ? 'Correct' : 'Incorrect'}
+                         </span>
+                       </div>
+                     </div>
+                     <div className="mb-3">
+                       <strong>Question:</strong>
+                       <div className="content mt-1" style={{ 
+                         padding: '0.5rem',
+                         backgroundColor: '#ffffff',
+                         borderRadius: '4px',
+                         fontSize: '0.875rem',
+                         border: '1px solid #e0e0e0'
+                       }}>
+                         {answer.question_text}
+                       </div>
+                     </div>
+                     <div className="mb-2">
+                       <strong>User's Answer:</strong>
+                       <div className="content mt-1" style={{ 
+                         maxHeight: '150px', 
+                         overflow: 'auto',
+                         padding: '0.5rem',
+                         backgroundColor: '#f5f5f5',
+                         borderRadius: '4px',
+                         fontSize: '0.875rem'
+                       }}>
+                         {answer.type === 'Multiple Choice' ? (
+                           <div>
+                             <div className="is-size-7 has-text-grey mb-1">Selected choice:</div>
+                             <span>{answer.choice_text || 'Choice not found'}</span>
+                             {!answer.choice_text && (
+                               <div className="is-size-7 has-text-grey mt-1">
+                                 Choice ID: <code>{answer.answer}</code>
+                               </div>
+                             )}
+                           </div>
+                         ) : answer.type === 'Subjective' ? (
+                           <div>
+                             <div className="is-size-7 has-text-grey mb-1">User's essay answer:</div>
+                             <span style={{ whiteSpace: 'pre-wrap' }}>{answer.answer || 'No answer provided'}</span>
+                           </div>
+                         ) : answer.type === 'Fill in the Blank' ? (
+                           <div>
+                             <div className="is-size-7 has-text-grey mb-1">User's answer:</div>
+                             <span style={{ fontWeight: 'bold' }}>{answer.answer || 'No answer provided'}</span>
+                           </div>
+                         ) : (
+                           <div>
+                             <div className="is-size-7 has-text-grey mb-1">Answer:</div>
+                             <span style={{ whiteSpace: 'pre-wrap' }}>{answer.answer || 'No answer provided'}</span>
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
 }

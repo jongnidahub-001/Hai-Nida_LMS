@@ -114,4 +114,50 @@
   .score-percentage {
     font-size: 2rem;
   }
+}
+
+/* Enhanced styles for text inputs and textareas */
+.question-content .field {
+  margin-bottom: 1rem;
+}
+
+.question-content .input,
+.question-content .textarea {
+  font-size: 1rem;
+  padding: 0.75rem;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  transition: border-color 0.3s ease;
+  width: 100%;
+  min-height: 2.5rem;
+}
+
+.question-content .textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.question-content .input:focus,
+.question-content .textarea:focus {
+  border-color: #3273dc;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(50, 115, 220, 0.1);
+}
+
+.question-content .input:hover,
+.question-content .textarea:hover {
+  border-color: #b5b5b5;
+}
+
+/* Evaluating state */
+.quiz-evaluating {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.evaluation-message {
+  text-align: center;
+  color: #3273dc;
+  font-style: italic;
+  margin-top: 1rem;
 } 

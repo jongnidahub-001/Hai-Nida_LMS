@@ -1,0 +1,40 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+venv/
+.venv/
+.env
+.DS_Store
+*.sqlite
+*.db
+
+# ChromaDB files (will be mounted as volume)
+chroma_db/
+chroma-data/
+
+# Temp files
+temp/*.pdf
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo 

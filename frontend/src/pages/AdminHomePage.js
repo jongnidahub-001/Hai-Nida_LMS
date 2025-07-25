@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
 
 function AdminHomePage() {
@@ -27,7 +28,7 @@ function AdminHomePage() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/users', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -53,7 +54,7 @@ function AdminHomePage() {
     setAddingUser(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/add-user', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/add-user`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),

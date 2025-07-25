@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
 
 // LessonExpander Component (copied from AdminAllCourse.js)
@@ -188,7 +189,7 @@ function AdminCourseDetail() {
   const fetchCourseDetails = async () => {
     try {
       // Fetch basic course details and enrolled users
-      const response = await fetch(`http://localhost:5000/api/admin/courses/${courseId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/courses/${courseId}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -204,7 +205,7 @@ function AdminCourseDetail() {
       }
 
       // Fetch lessons and lesson contents
-      const lessonsResponse = await fetch(`http://localhost:5000/api/admin/courses/${courseId}/lessons`, {
+      const lessonsResponse = await fetch(`${API_BASE_URL}/api/admin/courses/${courseId}/lessons`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -218,7 +219,7 @@ function AdminCourseDetail() {
       }
 
       // Fetch quiz data
-      const quizResponse = await fetch(`http://localhost:5000/api/admin/courses/${courseId}/quiz`, {
+      const quizResponse = await fetch(`${API_BASE_URL}/api/admin/courses/${courseId}/quiz`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -245,7 +246,7 @@ function AdminCourseDetail() {
     
     setDeleting(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/courses/${courseId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/courses/${courseId}`, {
         method: 'DELETE',
         headers: {
           ...getAuthHeader(),
@@ -409,7 +410,7 @@ function AdminCourseDetail() {
                   <span className="icon is-small">
                     <i className="fas fa-users"></i>
                   </span>
-                  <span>Enrolled Users</span>
+                  <span>Enrolled Users ({enrolledUsers.length})</span>
                 </a>
               </li>
             </ul>

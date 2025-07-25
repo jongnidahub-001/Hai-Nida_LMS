@@ -4,11 +4,12 @@ import './LoginPage.css';
 import projectLogo from '../assets/project_logo.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE_URL } from '../config/api';
 
 import Sidebar from '../component/Sidebar';
 
 function FirstTimeLoginPage() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -55,7 +56,7 @@ function FirstTimeLoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/first-time-setup', {
+      const response = await fetch(`${API_BASE_URL}/api/first-time-setup`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),

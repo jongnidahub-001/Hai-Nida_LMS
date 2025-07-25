@@ -6,6 +6,7 @@ import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import './LessonPage.css';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 
 function LessonPage() {
   const { courseId, lessonId } = useParams();
@@ -22,6 +23,14 @@ function LessonPage() {
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [markCompleteLoading, setMarkCompleteLoading] = useState(false);
 
+  // Chat states
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatMessagesEndRef = React.useRef(null);
+  const chatMessagesContainerRef = React.useRef(null);
+
   useEffect(() => {
     // Set navigation loading if this is a lesson change (not initial load)
     if (currentLesson && currentLesson.lesson_id.toString() !== lessonId) {
@@ -37,9 +46,31 @@ function LessonPage() {
     }
   }, [currentLesson]);
 
+  // Auto-scroll to bottom of chat when new messages are added
+  useEffect(() => {
+    if (isChatOpen) {
+      // Use setTimeout to ensure DOM is updated before scrolling
+      setTimeout(() => {
+        // Try multiple scroll methods for better compatibility
+        if (chatMessagesEndRef.current) {
+          chatMessagesEndRef.current.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'end',
+            inline: 'nearest'
+          });
+        }
+        
+        // Also scroll the container directly
+        if (chatMessagesContainerRef.current) {
+          chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [chatMessages, chatLoading, isChatOpen]);
+
   const fetchCourseData = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/course-progress/${courseId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/course-progress/${courseId}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -70,7 +101,7 @@ function LessonPage() {
 
   const fetchLessonContent = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/lesson-content/${lessonId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/lesson-content/${lessonId}`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -212,7 +243,7 @@ function LessonPage() {
     try {
       console.log('Marking lesson complete:', { lessonId, courseId });
       
-      const response = await fetch(`http://localhost:5000/api/lesson-complete`, {
+      const response = await fetch(`${API_BASE_URL}/api/lesson-complete`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
@@ -263,6 +294,125 @@ function LessonPage() {
       setLessonContent(null); // Clear current content immediately
       navigate(`/course/${courseId}/lesson/${lessonId}`);
     }
+  };
+
+  // Chat functionality
+  const toggleChat = () => {
+    setIsChatOpen(!isChatOpen);
+    
+    // If opening chat, scroll to bottom after a short delay
+    if (!isChatOpen) {
+      setTimeout(() => {
+        if (chatMessagesContainerRef.current) {
+          chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
+        }
+      }, 200);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    if (!currentMessage.trim() || chatLoading) return;
+
+    const userMessage = {
+      role: 'user',
+      content: currentMessage,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add user message to chat history
+    const updatedMessages = [...chatMessages, userMessage];
+    setChatMessages(updatedMessages);
+    setCurrentMessage('');
+    setChatLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat-completion`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          course_id: courseId,
+          lesson_id: lessonId,
+          message: currentMessage,
+          chat_history: updatedMessages
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success) {
+          // Add AI response to chat history - handle both string and object responses
+          let aiResponseContent = data.ai_response;
+          
+          // If ai_response is an object, try to extract the text content
+          if (typeof aiResponseContent === 'object' && aiResponseContent !== null) {
+            if (aiResponseContent.content) {
+              aiResponseContent = aiResponseContent.content;
+            } else if (aiResponseContent.text) {
+              aiResponseContent = aiResponseContent.text;
+            } else {
+              aiResponseContent = JSON.stringify(aiResponseContent);
+            }
+          }
+          
+          // Ensure we have a string
+          if (typeof aiResponseContent !== 'string') {
+            aiResponseContent = String(aiResponseContent);
+          }
+          
+          const aiMessage = {
+            role: 'assistant',
+            content: aiResponseContent,
+            timestamp: data.timestamp
+          };
+          
+          setChatMessages([...updatedMessages, aiMessage]);
+        } else {
+          console.error('Chat API error:', data);
+          // Add error message to chat
+          const errorMessage = {
+            role: 'assistant',
+            content: 'Sorry, I encountered an error. Please try again.',
+            timestamp: new Date().toISOString()
+          };
+          setChatMessages([...updatedMessages, errorMessage]);
+        }
+      } else {
+        console.error('Chat API request failed:', response.status);
+        // Add error message to chat
+        const errorMessage = {
+          role: 'assistant',
+          content: 'Sorry, I\'m having trouble connecting. Please try again.',
+          timestamp: new Date().toISOString()
+        };
+        setChatMessages([...updatedMessages, errorMessage]);
+      }
+    } catch (error) {
+      console.error('Error sending chat message:', error);
+      // Add error message to chat
+      const errorMessage = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date().toISOString()
+      };
+      setChatMessages([...updatedMessages, errorMessage]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleChatKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  };
+
+  const clearChatHistory = () => {
+    setChatMessages([]);
   };
 
   // Helper function to detect if content is markdown
@@ -548,6 +698,14 @@ function LessonPage() {
                       <span className="icon"><i className="fas fa-share"></i></span>
                       <span>Share</span>
                     </button>
+
+                    <button 
+                      className="button is-info is-medium"
+                      onClick={toggleChat}
+                    >
+                      <span className="icon"><i className="fas fa-comments"></i></span>
+                      <span>Chat with AI</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -606,6 +764,141 @@ function LessonPage() {
           </div>
         </div>
       </div>
+
+      {/* Chat Interface */}
+      {isChatOpen && (
+        <div className="chat-modal-overlay" onClick={toggleChat}>
+          <div className="chat-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="chat-header">
+              <h4 className="title is-5 mb-0">Chat with AI Assistant</h4>
+              <div className="chat-controls">
+                <button 
+                  className="button is-small is-light"
+                  onClick={clearChatHistory}
+                  title="Clear chat history"
+                >
+                  <span className="icon is-small"><i className="fas fa-trash"></i></span>
+                </button>
+                <button 
+                  className="button is-small is-light"
+                  onClick={toggleChat}
+                  title="Close chat"
+                >
+                  <span className="icon is-small"><i className="fas fa-times"></i></span>
+                </button>
+              </div>
+            </div>
+            
+            <div className="chat-messages" ref={chatMessagesContainerRef}>
+              {chatMessages.length === 0 ? (
+                <div className="chat-welcome">
+                  <div className="has-text-centered">
+                    <span className="icon is-large has-text-info">
+                      <i className="fas fa-robot fa-2x"></i>
+                    </span>
+                    <p className="is-size-5 mb-2">Hello! I'm your AI assistant.</p>
+                    <p className="is-size-6 has-text-grey">Ask me anything about this lesson content!</p>
+                  </div>
+                </div>
+              ) : (
+                chatMessages.map((message, index) => (
+                  <div key={index} className={`chat-message ${message.role === 'user' ? 'user-message' : 'ai-message'}`}>
+                    <div className="message-content">
+                      {message.role === 'assistant' ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeRaw]}
+                          components={{
+                            p: ({children}) => <p className="mb-2">{children}</p>,
+                            ul: ({children}) => <ul className="mb-2">{children}</ul>,
+                            ol: ({children}) => <ol className="mb-2">{children}</ol>,
+                            li: ({children}) => <li>{children}</li>,
+                            code: ({inline, children, ...props}) => 
+                              inline ? 
+                                <code className="tag is-light is-small" {...props}>{children}</code> :
+                                <pre className="has-background-dark has-text-white p-2 is-size-7"><code {...props}>{children}</code></pre>,
+                            strong: ({children}) => <strong>{children}</strong>,
+                            em: ({children}) => <em>{children}</em>
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      ) : (
+                        <p>{message.content}</p>
+                      )}
+                    </div>
+                    <div className="message-avatar">
+                      <span className="icon">
+                        <i className={`fas ${message.role === 'user' ? 'fa-user' : 'fa-robot'}`} style={{color: message.role === 'user' ? 'var(--primary-black) !important' : 'var(--primary-white) !important'}}></i>
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+              
+              {chatLoading && (
+                <div className="chat-message ai-message">
+                  <div className="message-content">
+                    <div className="typing-indicator">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </div>
+                  <div className="message-avatar">
+                    <span className="icon">
+                      <i className="fas fa-robot"></i>
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatMessagesEndRef} />
+            </div>
+            
+            <div className="chat-input">
+              <div className="field has-addons">
+                <div className="control is-expanded">
+                  <textarea
+                    className="textarea is-small"
+                    placeholder="Ask me anything about this lesson..."
+                    value={currentMessage}
+                    onChange={(e) => setCurrentMessage(e.target.value)}
+                    onKeyPress={handleChatKeyPress}
+                    rows="2"
+                    disabled={chatLoading}
+                  />
+                </div>
+                <div className="control">
+                  <button
+                    className={`button is-info is-small ${chatLoading ? 'is-loading' : ''}`}
+                    onClick={sendChatMessage}
+                    disabled={chatLoading || !currentMessage.trim()}
+                    style={{ height: '100%' }}
+                  >
+                    <span className="icon">
+                      <i className="fas fa-paper-plane"></i>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Chat Button */}
+      {!isChatOpen && (
+        <button 
+          className="floating-chat-button"
+          onClick={toggleChat}
+          title="Chat with AI Assistant"
+        >
+          <span className="icon">
+            <i className="fas fa-comments"></i>
+          </span>
+          <span className="chat-badge">AI</span>
+        </button>
+      )}
 
       {/* Navigation Footer */}
       <div className="lesson-navigation-footer">

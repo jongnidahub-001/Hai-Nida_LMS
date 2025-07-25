@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Frontend Service (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_BASE_URL=http://backend:5000
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  # Backend Service (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      - chromadb
+    volumes:
+      - ./backend/temp:/app/temp
+      - ./backend/chroma_db:/app/chroma_db
+    networks:
+      - app-network
+
+  # Database Service (ChromaDB)
+  chromadb:
+    image: chromadb/chroma:1.0.15
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./chroma-data:/data
+    environment:
+      - CHROMA_DB_IMPL=chromadb.db.impl.sqlite.SqliteDB
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  chroma-data: 

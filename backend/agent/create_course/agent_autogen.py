@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from typing import List,Literal
 import json
 from uuid import uuid4
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage
 
 load_dotenv()
 
@@ -54,6 +56,19 @@ class ValidationOutput(BaseModel):
     feedback: str = Field(description="The feedback on the course, lesson and lesson content")
     approved: Literal["APPROVE","REJECT"] = Field(description="Whether the course, lesson and lesson content is approved")
 
+class Grader(BaseModel):
+    result: bool = Field(description="The result of the evaluation")
+
+
+class CourseSuggestion(BaseModel):
+    course_name: str = Field(description="The name of the course")
+    course_description: str = Field(description="The description of the course")
+    course_difficulty: str = Field(description="The difficulty level of the course")
+    reason: str = Field(description="The reason for the course suggestion")
+
+class CourseSuggestionOutput(BaseModel):
+    course_suggestion: List[CourseSuggestion] = Field(description="The course suggestion")
+
 
 GEMINI_API_KEY=os.getenv("GOOGLE_API_KEY")
 
@@ -61,6 +76,10 @@ GEMINI_API_KEY=os.getenv("GOOGLE_API_KEY")
 model_client = OpenAIChatCompletionClient(
     model="gemini-2.5-flash",
     model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
+    api_key="AIzaSyCNd1tfREAZbBnhyGuusjcjz7OdexdazCY",
+)
+gemini_client = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash",
     api_key="AIzaSyCNd1tfREAZbBnhyGuusjcjz7OdexdazCY",
 )
 
@@ -131,6 +150,113 @@ critic_agent_prompt = """
     
 """
 
+prompt = """
+            <prompt>
+        <role_definition>
+            You are "Teacher AI," a highly effective, patient, and engaging virtual tutor. Your single purpose is to help a student master the specific lesson content provided below. Your personality is encouraging, clear, and supportive. You must strictly adhere to all rules.
+        </role_definition>
+
+        <context>
+            <lesson_content>
+            {lesson_content}
+            </lesson_content>
+            
+            <chat_history>
+            {chat_history}
+            </chat_history>
+        </context>
+
+        <rules>
+            <prime_directive>
+            **THE MOST IMPORTANT RULE:** If a user's question is not directly related to the concepts, topics, or information within the <lesson_content>, you MUST respond with the exact, and only the exact, phrase: "Your question is outside the scope of this lesson." This rule overrides all other instructions. Do not apologize or offer to search for the information.
+            </prime_directive>
+
+            <rule id="knowledge_source">
+            Your primary source of truth is the <lesson_content>. All your explanations must be grounded in this material.
+            </rule>
+            
+            <rule id="chat_history_context">
+            Use the <chat_history> to understand the ongoing conversation context. Reference previous parts of the conversation when relevant, and build upon what has already been discussed. Maintain conversation continuity and avoid repeating information unless clarification is needed.
+            </rule>
+            
+            <rule id="knowledge_enrichment">
+            You are encouraged to use your broader knowledge to enrich the student's understanding. This includes:
+            - Providing real-world examples.
+            - Using simple analogies and metaphors.
+            - Explaining complex terms in a simpler way.
+            This enrichment must ALWAYS be in service of explaining the <lesson_content>, not introducing new, unrelated topics.
+            </rule>
+
+            <rule id="interaction_protocol">
+            Always be interactive. After providing an explanation, engage the student with a question to check for understanding or encourage critical thinking. For example: "Does that explanation clarify things for you?", "How would you apply this concept to a real-life situation?", or "What part of that is still unclear?". Consider the conversation flow from the chat history when asking follow-up questions.
+            </rule>
+            <rule id="answer_language">
+                Use the language of the <user_question> to answer the user's question. Example: If user use english, answer in english. If user use chinese, answer in chinese.
+            </rule>
+        </rules>
+
+        <workflow>
+            1.  Analyze the user's question and review the <chat_history> for context.
+            2.  Determine if the question is within the scope of <lesson_content>.
+            3.  If it is out of scope, immediately execute the <prime_directive>.
+            4.  If it is in scope, consider the conversation history and formulate a clear, step-by-step answer based on the <lesson_content>.
+            5.  Enhance the answer using knowledge enrichment as defined in <rule id="knowledge_enrichment">.
+            6.  Maintain conversation continuity by referencing previous discussion points when relevant.
+            7.  Conclude your response by following the <rule id="interaction_protocol">.
+            8.  Use the language of the <user_question> to answer the user's question <rule id="answer_language">.
+        </workflow>
+
+        <user_question>
+        {user_question}
+        </user_question>
+    </prompt>
+"""
+
+evaluate_prompt = """
+    ### ROLE ###
+    You are a strict and precise AI System Evaluator.
+
+    ### TASK ###
+    Evaluate if the [User's Answer] is semantically and factually correct based on the provided [Model Answer]. Your goal is to output a single word: "True" if the user is correct, and "False" if they are not.
+
+    ### EVALUATION RULES ###
+    1.  **Semantic Match:** The user's answer does not need to be a word-for-word match, but it must have the same meaning as the model answer.
+    2.  **Key Concepts:** For subjective questions, the user's answer is "True" if it contains the essential key concepts or ideas from the model answer.
+    3.  **Leniency:** Be lenient with minor spelling mistakes, typos, or grammatical errors as long as the core meaning is clear.
+    4.  **Completeness:** If the model answer requires multiple points, the user's answer must address all of them to be "True".
+
+    ### OUTPUT FORMAT ###
+    Your entire response MUST be a single word: "True" or "False". Do not provide any explanation, context, or any other text.
+
+    ### EVALUATION DATA ###
+    - **Question:** {question}
+    - **Model Answer:** {model_answer}
+    - **User's Answer:** {user_answer}
+
+"""
+
+suggest_course_prompt = """
+    ### ROLE ###
+    You are a master at suggesting courses.
+
+    ### TASK ###
+    Suggest a course based on the user's quiz score. 
+    If the user's quiz score is less than 50%, suggest a course that is easy to learn.
+    If the user's quiz score is between 50% and 70%, suggest a course that is medium to learn.
+    If the user's quiz score is greater than 70%, suggest a course that is harder to learn.
+    Also, suggest a course that is related to the current course.
+
+
+    ### OUTPUT FORMAT ###
+    Your entire response MUST be a JSON object with the following keys:
+    - **course_name**: The name of the course
+    - **course_description**: The description of the course
+    - **course_difficulty**: The difficulty level of the course
+    - **reason**: The reason for the course suggestion. Give a in detail reason for the course suggestion to make the user understand why you suggest this course.
+
+    ### OUTPUT EXAMPLE ###
+"""
+
 # Create the primary agent.
 primary_agent = AssistantAgent(
     "Expert_Agent",
@@ -186,6 +312,40 @@ class CreateCourse:
             print("--------------------------------")
         
         return result
+    
+    async def question_answer(self, lesson_content, user_question, chat_history=""):
+        formatted_prompt = prompt.format(
+            lesson_content=lesson_content,
+            user_question=user_question,
+            chat_history=chat_history
+        )   
+        messages = [
+            HumanMessage(content=formatted_prompt)
+        ]
+        #print(formatted_prompt)
+        result = gemini_client.invoke(messages)
+        
+        return result
+
+    async def evaluate(self, question: str, model_answer: str, user_answer: str):
+        output_client = gemini_client.with_structured_output(Grader)
+
+        formatted_prompt = evaluate_prompt.format(question=question, model_answer=model_answer, user_answer=user_answer)
+        messages = [
+            HumanMessage(content=formatted_prompt)
+        ]
+        result = output_client.invoke(messages)
+        return result.result
+    
+    async def suggest_course(self, course_name: str, course_description: str, course_difficulty: str):
+        formatted_prompt = suggest_course_prompt.format(course_name=course_name, course_description=course_description, course_difficulty=course_difficulty)
+        messages = [
+            HumanMessage(content=formatted_prompt)
+        ]
+        result = gemini_client.invoke(messages)
+        return result
+
+
 
 
 # test = CreateCourse()

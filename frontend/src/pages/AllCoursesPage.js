@@ -4,6 +4,7 @@ import './HomePage.css';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 
 function AllCoursesPage() {
   const { user, logout, getAuthHeader } = useAuth();
@@ -23,7 +24,7 @@ function AllCoursesPage() {
   }, [getAuthHeader]);
 
   const fetchCourses = () => {
-    fetch('http://localhost:5000/api/courses', {
+    fetch(`${API_BASE_URL}/api/courses`, {
       headers: {
         ...getAuthHeader(),
         'Content-Type': 'application/json'
@@ -46,7 +47,7 @@ function AllCoursesPage() {
 
   const fetchEnrolledCourses = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/my-courses', {
+      const response = await fetch(`${API_BASE_URL}/api/my-courses`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'

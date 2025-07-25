@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../component/Sidebar';
 
 function LoginPage() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
