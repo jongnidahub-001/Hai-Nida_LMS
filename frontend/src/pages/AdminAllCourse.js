@@ -588,7 +588,7 @@ function AdminAllCourse() {
     
     setCreatingQuiz(true);
     try {
-      const response = await fetch('http://localhost:5000/api/create-quiz/preview', {
+      const response = await fetch(`${API_BASE_URL}/api/create-quiz/preview`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),

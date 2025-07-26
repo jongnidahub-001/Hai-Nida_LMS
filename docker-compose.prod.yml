@@ -7,7 +7,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        - REACT_APP_API_BASE_URL=http://localhost:5000
+        - REACT_APP_API_BASE_URL=http://35.240.146.194:5000
     ports:
       - "80:80"  # Serve on port 80
     depends_on:
@@ -24,7 +24,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - CHROMA_HOST=chromadb
+      - CHROMA_HOST=35.240.146.194
       - CHROMA_PORT=8000
     depends_on:
       - chromadb
