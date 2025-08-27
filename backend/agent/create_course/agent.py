@@ -89,7 +89,10 @@ class CreateCourse(Crew):
 
                 Return the output in the exact FinalOutput format with course, lessons, and lesson_contents.
             """,
-            expected_output="A structured course with lessons and lesson content in FinalOutput format",
+            expected_output="""
+            A structured course with lessons and lesson content in FinalOutput format, Output must be in json format not text.
+            Every course must have at least 1 lesson and 1 lesson content.
+            """,
             agent=expert_agent,
             output_pydantic=FinalOutput,
         )
@@ -97,6 +100,7 @@ class CreateCourse(Crew):
         validator_task = Task(
             description="""from the course, lesson and lesson content created by the expert agent,
                 Provide feedback on the quality, completeness, and educational value.
+                Also check if the course, lesson and lesson content is in the FinalOutput format and every course must have at least 1 lesson and 1 lesson content.
             """,
             expected_output="Feedback and validation comments on the course structure and lesson content",
             agent=validator_agent,
