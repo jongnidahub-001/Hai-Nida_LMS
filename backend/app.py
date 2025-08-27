@@ -706,15 +706,18 @@ async def preview_course_with_agent(request: CoursePreviewRequest, current_user:
             return output
         else:
             print("No valid output generated from agent")
+            os.remove(f"./temp/{_id}.pdf")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="No valid output generated from agent"
             )
         
     except HTTPException:
+        os.remove(f"./temp/{_id}.pdf")
         raise
     except Exception as e:
         print(f"Error in preview_course_with_agent: {str(e)}")
+        os.remove(f"./temp/{_id}.pdf")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating course preview: {str(e)}"
@@ -871,18 +874,22 @@ async def preview_quiz_with_agent(request: QuizPreviewRequest, current_user: str
                 'output': final_output
             }
             print(output)
+            os.remove(f"./temp/{_id}.pdf")
             return output
         else:
             print("No valid output generated from agent")
+            os.remove(f"./temp/{_id}.pdf")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="No valid output generated from agent"
             )
         
     except HTTPException:
+        os.remove(f"./temp/{_id}.pdf")
         raise
     except Exception as e:
         print(f"Error in preview_quiz_with_agent: {str(e)}")
+        os.remove(f"./temp/{_id}.pdf")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating quiz preview: {str(e)}"
