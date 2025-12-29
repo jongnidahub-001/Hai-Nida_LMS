@@ -69,19 +69,70 @@ class CourseSuggestion(BaseModel):
 class CourseSuggestionOutput(BaseModel):
     course_suggestion: List[CourseSuggestion] = Field(description="The course suggestion")
 
+class RegeneratedLesson(BaseModel):
+    lesson_title: str = Field(description="The title of the lesson")
+    duration_hours: int = Field(description="The duration of the lesson in hours")
+    description: str = Field(description="The description of the lesson")
+    what_you_will_learn: List[str] = Field(description="What you will learn in the lesson")
 
-GEMINI_API_KEY=os.getenv("GOOGLE_API_KEY")
+class RegeneratedLessonContent(BaseModel):
+    content_order: int = Field(description="The order of the content in the lesson")
+    content_type: Literal["text","video"] = Field(description="The type of the content only (text,video)")
+    content: str = Field(description="The content of the lesson")
 
-# Create an OpenAI model client.
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.5-flash",
-    model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
-    api_key="AIzaSyCNd1tfREAZbBnhyGuusjcjz7OdexdazCY",
-)
+class RegeneratedLessonOutput(BaseModel):
+    lesson: RegeneratedLesson = Field(description="The regenerated lesson")
+    lesson_contents: List[RegeneratedLessonContent] = Field(description="The regenerated lesson contents")
+
+
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# Shared client for simple LLM calls (stateless, safe to share)
 gemini_client = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
-    api_key="AIzaSyCNd1tfREAZbBnhyGuusjcjz7OdexdazCY",
+    model="gemini-2.5-flash",
+    api_key=GEMINI_API_KEY,
 )
+
+
+def create_model_client():
+    """Create a new model client instance for each request"""
+    return OpenAIChatCompletionClient(
+        model="gemini-2.5-flash",
+        model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
+        api_key=GEMINI_API_KEY,
+    )
+
+
+def create_team_for_request(document_content: str, difficulty_level: str):
+    """Create fresh agent team for each request to ensure isolation"""
+    model_client = create_model_client()
+    
+    formatted_system_message = primary_agent_prompt.format(
+        document_content=document_content,
+        difficulty_level=difficulty_level
+    )
+    
+    # Create fresh agents for this request
+    primary_agent = AssistantAgent(
+        "Expert_Agent",
+        model_client=model_client,
+        system_message=formatted_system_message,
+        output_content_type=FinalOutput,
+    )
+    
+    critic_agent = AssistantAgent(
+        "Validator_Agent",
+        model_client=model_client,
+        system_message=critic_agent_prompt,
+    )
+    
+    # Define termination condition
+    text_termination = TextMentionTermination("APPROVE")
+    
+    # Create a new team for this specific request
+    team = RoundRobinGroupChat([primary_agent, critic_agent], termination_condition=text_termination)
+    
+    return team
 
 primary_agent_prompt = """
 
@@ -128,6 +179,31 @@ Instructions:
   - Be structured with **headings, subheadings**, and **examples** appropriate to the **{difficulty_level}** difficulty.
   - Include **clear explanations**, **steps**, **case studies**, or **diagrams** (if appropriate).
   - End with a brief **summary or recap** and 2-3 **reflection questions** or a quiz matching the **{difficulty_level}** difficulty level.
+
+**CRITICAL MARKDOWN FORMATTING RULES:**
+- ALWAYS add a blank line BEFORE every heading (##, ###, ####)
+- ALWAYS add a blank line AFTER every heading
+- ALWAYS add a blank line between paragraphs
+- ALWAYS add a blank line before bullet lists or numbered lists
+- NEVER run headings into text like "some text### Heading" - this breaks rendering
+- Example of CORRECT formatting:
+  ```
+  This is a paragraph about neural networks.
+
+  ### 2.1 Neural Networks Overview
+
+  Neural networks are computational models...
+
+  #### Key Concepts:
+
+  - Concept 1
+  - Concept 2
+  ```
+- Example of WRONG formatting (DO NOT DO THIS):
+  ```
+  This is a paragraph about neural networks.### 2.1 Neural Networks Overview
+  Neural networks are computational models...#### Key Concepts:- Concept 1
+  ```
 - Use external data (own knowledge) to fulfill gaps if the document lacks enough information.
 - Ensure the entire course maintains consistency with the **{difficulty_level}** difficulty level.
 
@@ -140,14 +216,42 @@ Return the output in the exact FinalOutput format with course, lessons, and less
 """
 
 critic_agent_prompt = """
-    Role : You are a master at validating courses, lessons and lesson content. You are also a master at validating course outline that are engaging and effective.
-    Goal : Validate the course, lesson and lesson content for a given document and provide feedback to the expert agent Provide constructive feedback. Respond with 'APPROVE'(only in capital letters with no other text) to when your feedbacks are addressed, if not, do not include "APPROVE" in your response. only include "APPROVE" if the course, lesson and lesson content is approved.
-    Backstory : With over 10 years of experience in the field of education, you are a master at validating courses, lessons and lesson content. You are also a master at validating course outline that are engaging and effective.
+Role: You are a master at validating courses, lessons and lesson content. You are also an expert at validating markdown formatting.
 
-    Additional Instructions :
-    - Provide feedback on the quality, completeness, and educational value.
-    - DO NOT modify the original course structure - only provide feedback.
-    
+Goal: Validate the course, lesson and lesson content for quality, completeness, educational value, AND proper markdown formatting. Provide constructive feedback to the expert agent. Respond with 'APPROVE' (only in capital letters with no other text) when ALL your feedbacks are addressed. If not, do NOT include "APPROVE" in your response.
+
+Backstory: With over 10 years of experience in education and technical writing, you are a master at validating courses and ensuring content is properly formatted for readability.
+
+**VALIDATION CHECKLIST:**
+
+1. **Educational Quality:**
+   - Content is complete and covers all necessary topics
+   - Appropriate difficulty level maintained
+   - Clear learning objectives and outcomes
+
+2. **MARKDOWN FORMATTING (CRITICAL - MUST CHECK):**
+   - ✓ Every heading (##, ###, ####) has a BLANK LINE before it
+   - ✓ Every heading has a BLANK LINE after it
+   - ✓ Paragraphs are separated by blank lines
+   - ✓ Lists have a blank line before the first item
+   - ✓ No headings running into text (e.g., "text### Heading" is WRONG)
+   - ✓ No paragraphs running together without line breaks
+   
+   **If you see formatting like this, REJECT and ask for fixes:**
+   - "some text### 2.1 Heading" ← WRONG (missing line break before ###)
+   - "Heading\\nText immediately" ← WRONG (missing line break after heading)
+   - "paragraph1paragraph2" ← WRONG (paragraphs must be separated)
+
+3. **Structure:**
+   - Proper use of headings hierarchy (##, ###, ####)
+   - Summary or recap at the end
+   - Reflection questions included
+
+**Instructions:**
+- Provide specific feedback on what needs to be fixed
+- Be strict about markdown formatting - it affects readability
+- DO NOT modify the original content - only provide feedback
+- Only respond with 'APPROVE' when ALL criteria are met, including formatting
 """
 
 prompt = """
@@ -257,26 +361,75 @@ suggest_course_prompt = """
     ### OUTPUT EXAMPLE ###
 """
 
-# Create the primary agent.
-primary_agent = AssistantAgent(
-    "Expert_Agent",
-    model_client=model_client,
-    system_message=primary_agent_prompt,
-    output_content_type=FinalOutput,
-)
+regenerate_lesson_prompt = """
+### ROLE ###
+You are an expert course content creator with 10+ years of experience in education. You specialize in creating engaging, comprehensive, and effective lesson content.
 
-# Create the critic agent.
-critic_agent = AssistantAgent(
-    "Validator_Agent",
-    model_client=model_client,
-    system_message=critic_agent_prompt,
-)
+### TASK ###
+Regenerate and improve a lesson based on the user's prompt/instructions. You must create updated lesson metadata and content while maintaining the lesson's core purpose within the course.
 
-# Define a termination condition that stops the task if the critic approves.
-text_termination = TextMentionTermination("APPROVE")
+### CONTEXT ###
+**Course Information:**
+- Course Name: {course_name}
+- Course Description: {course_description}
+- Course Difficulty Level: {difficulty_level}
 
-# Create a team with the primary and critic agents.
-team = RoundRobinGroupChat([primary_agent, critic_agent], termination_condition=text_termination)
+**Current Lesson Information:**
+- Lesson Title: {lesson_title}
+- Lesson Order: {lesson_order}
+- Duration (hours): {duration_hours}
+- Current Learning Objectives: {what_you_will_learn}
+
+**Current Lesson Content:**
+{current_content}
+
+### USER'S EDIT REQUEST ###
+{user_prompt}
+
+### INSTRUCTIONS ###
+1. Based on the user's request, regenerate the lesson with improved or modified content.
+2. Maintain consistency with the course's difficulty level ({difficulty_level}).
+3. The lesson content must:
+   - Cover all topics thoroughly according to the difficulty level
+   - Include at least 500 words (or enough content for the lesson duration)
+   - Be structured with headings, subheadings, and examples
+   - Include clear explanations, steps, case studies, or diagrams descriptions
+   - End with a brief summary and 2-3 reflection questions
+4. Keep the lesson relevant to the overall course objectives.
+5. If the user requests specific changes, prioritize those while maintaining educational quality.
+
+### CRITICAL MARKDOWN FORMATTING RULES ###
+- ALWAYS add a blank line BEFORE every heading (##, ###, ####)
+- ALWAYS add a blank line AFTER every heading
+- ALWAYS add a blank line between paragraphs
+- ALWAYS add a blank line before bullet lists or numbered lists
+
+**CORRECT Example:**
+```
+This is a paragraph about the topic.
+
+### 2.1 Section Title
+
+This is the content of the section...
+
+#### Key Points:
+
+- Point 1
+- Point 2
+```
+
+**WRONG Example (DO NOT DO THIS):**
+```
+This is a paragraph about the topic.### 2.1 Section Title
+This is the content of the section...#### Key Points:- Point 1
+```
+
+### OUTPUT FORMAT ###
+Return the regenerated lesson in the exact RegeneratedLessonOutput format with lesson metadata and lesson_contents.
+"""
+
+# Note: Agents and teams are now created per-request using create_team_for_request()
+# This ensures concurrent users don't interfere with each other
 
 
 class CreateCourse:
@@ -296,12 +449,12 @@ class CreateCourse:
         if difficulty_level not in valid_difficulties:
             raise ValueError(f"Invalid difficulty level. Must be one of: {valid_difficulties}")
         
-        formatted_prompt = primary_agent_prompt.format(
-            document_content=document_content,
-            difficulty_level=difficulty_level
-        )
+        # Create a fresh team for this request (ensures concurrent user isolation)
+        team = create_team_for_request(document_content, difficulty_level)
         
-        result = await team.run(task=formatted_prompt)
+        # Run the team with a simple task prompt
+        result = await team.run(task="Create the course based on the provided document and difficulty level.")
+        
         for i in result.messages:
             print("--------------------------------")
             print("Agent: ",i.source)
@@ -343,6 +496,56 @@ class CreateCourse:
             HumanMessage(content=formatted_prompt)
         ]
         result = gemini_client.invoke(messages)
+        return result
+
+    async def regenerate_lesson(
+        self,
+        course_name: str,
+        course_description: str,
+        difficulty_level: str,
+        lesson_title: str,
+        lesson_order: int,
+        duration_hours: int,
+        what_you_will_learn: List[str],
+        current_content: str,
+        user_prompt: str
+    ):
+        """
+        Regenerate a single lesson based on user's edit request
+        
+        Args:
+            course_name: Name of the course
+            course_description: Description of the course
+            difficulty_level: Difficulty level of the course
+            lesson_title: Current title of the lesson
+            lesson_order: Order of the lesson in the course
+            duration_hours: Duration of the lesson
+            what_you_will_learn: Current learning objectives
+            current_content: Current lesson content
+            user_prompt: User's request for changes
+            
+        Returns:
+            RegeneratedLessonOutput with updated lesson and contents
+        """
+        output_client = gemini_client.with_structured_output(RegeneratedLessonOutput)
+        
+        formatted_prompt = regenerate_lesson_prompt.format(
+            course_name=course_name,
+            course_description=course_description,
+            difficulty_level=difficulty_level,
+            lesson_title=lesson_title,
+            lesson_order=lesson_order,
+            duration_hours=duration_hours,
+            what_you_will_learn=what_you_will_learn,
+            current_content=current_content,
+            user_prompt=user_prompt
+        )
+        
+        messages = [
+            HumanMessage(content=formatted_prompt)
+        ]
+        
+        result = output_client.invoke(messages)
         return result
 
 

@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from typing import List,Literal
 import json
 from uuid import uuid4
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage
 
 load_dotenv()
 
@@ -57,14 +59,37 @@ class ValidationOutput(BaseModel):
     feedback: str = Field(description="The feedback on the course, lesson and lesson content")
     approved: Literal["APPROVE","REJECT"] = Field(description="Whether the course, lesson and lesson content is approved")
 
+class RegeneratedQuestion(BaseModel):
+    question_text: str = Field(description="The text of the question")
+    question_type: Literal["Multiple Choice","Subjective","Fill in the Blank"] = Field(description="The type of the question")
+    points: int = Field(description="The points of the question")
 
-GEMINI_API_KEY=os.getenv("GOOGLE_API_KEY")
+class RegeneratedChoice(BaseModel):
+    choice_text: str = Field(description="The text of the choice")
+    is_correct: bool = Field(description="Whether the choice is correct")
+
+class RegeneratedAnswer(BaseModel):
+    answer_text: str = Field(description="The text of the answer")
+
+class RegeneratedQuestionOutput(BaseModel):
+    question: RegeneratedQuestion = Field(description="The regenerated question")
+    choices: List[RegeneratedChoice] = Field(description="The regenerated choices (for Multiple Choice questions)")
+    answers: List[RegeneratedAnswer] = Field(description="The regenerated answers")
+
+
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Create an OpenAI model client.
 model_client = OpenAIChatCompletionClient(
     model="gemini-2.5-flash",
     model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
-    api_key="AIzaSyCNd1tfREAZbBnhyGuusjcjz7OdexdazCY",
+    api_key=GEMINI_API_KEY,
+)
+
+# Create Gemini client for question regeneration
+gemini_client = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    api_key=GEMINI_API_KEY,
 )
 
 primary_agent_prompt = """
@@ -153,6 +178,56 @@ critic_agent_prompt = """
     
 """
 
+regenerate_question_prompt = """
+### ROLE ###
+You are an expert quiz creator with 10+ years of experience in educational assessment. You specialize in creating clear, effective, and appropriately challenging quiz questions.
+
+### TASK ###
+Regenerate and improve a quiz question based on the user's prompt/instructions. You must create an updated question with appropriate choices (for Multiple Choice) and answers.
+
+### SOURCE DOCUMENT ###
+Use this document content as the primary source of information for creating accurate questions and answers:
+
+{document_content}
+
+### CONTEXT ###
+**Quiz Information:**
+- Quiz Title: {quiz_title}
+- Quiz Description: {quiz_description}
+- Difficulty Level: {difficulty_level}
+
+**Current Question Information:**
+- Question Type: {question_type}
+- Question Text: {question_text}
+- Points: {points}
+- Current Choices: {current_choices}
+- Current Answer: {current_answer}
+
+### USER'S EDIT REQUEST ###
+{user_prompt}
+
+### INSTRUCTIONS ###
+1. Based on the user's request and the SOURCE DOCUMENT, regenerate the question with improved or modified content.
+2. Ensure the question and answer are accurate based on the SOURCE DOCUMENT content.
+3. Maintain consistency with the quiz's difficulty level ({difficulty_level}).
+4. Keep the same question type ({question_type}) unless user explicitly requests a change.
+5. For Multiple Choice questions:
+   - Provide exactly 4 choices with only one correct answer
+   - Make distractors plausible but clearly incorrect based on the document
+   - Ensure the correct answer is accurate according to the document
+6. For Subjective questions:
+   - Create a clear, unambiguous question
+   - Provide a comprehensive expected answer based on the document
+7. For Fill in the Blank questions:
+   - Create a clear sentence with a blank
+   - Provide the exact correct answer from the document
+8. Assign appropriate point values based on difficulty and complexity.
+9. If the user requests specific changes, prioritize those while maintaining question quality and accuracy.
+
+### OUTPUT FORMAT ###
+Return the regenerated question in the exact RegeneratedQuestionOutput format with question, choices (if applicable), and answers.
+"""
+
 # Create the primary agent.
 primary_agent = AssistantAgent(
     "Expert_Agent",
@@ -215,6 +290,59 @@ class CreateCourse:
                 print("Content: ",i.content)
             print("--------------------------------")
         
+        return result
+
+    async def regenerate_question(
+        self,
+        document_content: str,
+        quiz_title: str,
+        quiz_description: str,
+        difficulty_level: str,
+        question_type: str,
+        question_text: str,
+        points: int,
+        current_choices: str,
+        current_answer: str,
+        user_prompt: str
+    ):
+        """
+        Regenerate a single quiz question based on user's edit request
+        
+        Args:
+            document_content: The original document content used to create the quiz
+            quiz_title: Title of the quiz
+            quiz_description: Description of the quiz
+            difficulty_level: Difficulty level of the quiz
+            question_type: Type of question (Multiple Choice, Subjective, Fill in the Blank)
+            question_text: Current question text
+            points: Current point value
+            current_choices: Current choices as string (for Multiple Choice)
+            current_answer: Current answer as string
+            user_prompt: User's request for changes
+            
+        Returns:
+            RegeneratedQuestionOutput with updated question, choices, and answers
+        """
+        output_client = gemini_client.with_structured_output(RegeneratedQuestionOutput)
+        
+        formatted_prompt = regenerate_question_prompt.format(
+            document_content=document_content,
+            quiz_title=quiz_title,
+            quiz_description=quiz_description,
+            difficulty_level=difficulty_level,
+            question_type=question_type,
+            question_text=question_text,
+            points=points,
+            current_choices=current_choices,
+            current_answer=current_answer,
+            user_prompt=user_prompt
+        )
+        
+        messages = [
+            HumanMessage(content=formatted_prompt)
+        ]
+        
+        result = output_client.invoke(messages)
         return result
 
 

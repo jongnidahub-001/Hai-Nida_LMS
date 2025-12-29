@@ -1,0 +1,42 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Chroma DB",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\activate; chroma run --host localhost --port 8000 --path ./chroma-data",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "API Server",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\activate; uvicorn app:app --host 0.0.0.0 --port 5000 --reload",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend",
+      "type": "shell",
+      "command": "npm start",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Start All",
+      "dependsOn": ["Chroma DB", "API Server", "Frontend"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}
+

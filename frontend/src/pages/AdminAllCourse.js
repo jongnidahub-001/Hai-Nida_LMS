@@ -48,8 +48,19 @@ if (typeof document !== 'undefined') {
 }
 
 // LessonExpander Component
-const LessonExpander = ({ lesson, lessonContents }) => {
+const LessonExpander = ({ 
+  lesson, 
+  lessonContents, 
+  courseInfo = null, 
+  onLessonUpdate = null,
+  getAuthHeader = null 
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regeneratedData, setRegeneratedData] = useState(null);
+  const [showPreviewChanges, setShowPreviewChanges] = useState(false);
 
   const formatMarkdownContent = (content) => {
     if (!content) return '';
@@ -67,6 +78,82 @@ const LessonExpander = ({ lesson, lessonContents }) => {
       .replace(/\n/g, '<br/>');
   };
 
+  const handleEditClick = (e) => {
+    e.stopPropagation();
+    setIsEditMode(true);
+    setIsExpanded(true);
+  };
+
+  const handleRegenerateLesson = async () => {
+    if (!editPrompt.trim() || !courseInfo || !getAuthHeader) return;
+    
+    setIsRegenerating(true);
+    try {
+      // Combine all current content for the API
+      const currentContentText = lessonContents
+        ?.map(c => c.content)
+        .join('\n\n') || '';
+
+      const response = await fetch(`${API_BASE_URL}/api/lesson/regenerate`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          course_name: courseInfo.course_name,
+          course_description: courseInfo.description,
+          difficulty_level: courseInfo.difficulty_level,
+          lesson_id: lesson.lesson_id,
+          lesson_order: lesson.lesson_order,
+          lesson_title: lesson.lesson_title,
+          duration_hours: lesson.duration_hours,
+          what_you_will_learn: lesson.what_you_will_learn || [],
+          current_content: currentContentText,
+          user_prompt: editPrompt
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setRegeneratedData(data.data);
+          setShowPreviewChanges(true);
+        } else {
+          alert('Failed to regenerate lesson. Please try again.');
+        }
+      } else {
+        alert('Failed to regenerate lesson. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error regenerating lesson:', error);
+      alert('Error regenerating lesson. Please try again.');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleSaveChanges = () => {
+    if (onLessonUpdate && regeneratedData) {
+      onLessonUpdate(lesson.lesson_id, regeneratedData);
+    }
+    setIsEditMode(false);
+    setEditPrompt('');
+    setRegeneratedData(null);
+    setShowPreviewChanges(false);
+  };
+
+  const handleDiscardChanges = () => {
+    setIsEditMode(false);
+    setEditPrompt('');
+    setRegeneratedData(null);
+    setShowPreviewChanges(false);
+  };
+
+  // Use regenerated data if available for preview, otherwise use original
+  const displayLesson = showPreviewChanges && regeneratedData ? regeneratedData.lesson : lesson;
+  const displayContents = showPreviewChanges && regeneratedData ? regeneratedData.lesson_contents : lessonContents;
+
   return (
     <div className="card mb-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
       {/* Card Header - Clickable */}
@@ -77,35 +164,51 @@ const LessonExpander = ({ lesson, lessonContents }) => {
           transition: 'background-color 0.2s ease',
           backgroundColor: isExpanded ? '#f5f5f5' : 'white'
         }}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => !isEditMode && setIsExpanded(!isExpanded)}
         onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
         onMouseLeave={(e) => e.target.style.backgroundColor = isExpanded ? '#f5f5f5' : 'white'}
       >
         <div className="card-header-title">
-          <div className="is-flex is-align-items-center">
+          <div className="is-flex is-align-items-center is-flex-grow-1">
             <span className="icon is-medium mr-3 has-text-info">
               <i className="fas fa-book"></i>
             </span>
-            <div>
+            <div className="is-flex-grow-1">
               <p className="title is-6 mb-1">
-                Lesson {lesson.lesson_order}: {lesson.lesson_title}
+                Lesson {displayLesson.lesson_order}: {displayLesson.lesson_title}
+                {showPreviewChanges && (
+                  <span className="tag is-warning is-light ml-2">Preview</span>
+                )}
               </p>
               <p className="subtitle is-7 has-text-grey mb-0">
                 <span className="icon is-small mr-1">
                   <i className="fas fa-clock"></i>
                 </span>
-                {lesson.duration_hours} hours
-                {lessonContents && lessonContents.length > 0 && (
+                {displayLesson.duration_hours} hours
+                {displayContents && displayContents.length > 0 && (
                   <>
                     <span className="mx-2">•</span>
                     <span className="icon is-small mr-1">
                       <i className="fas fa-file-alt"></i>
                     </span>
-                    {lessonContents.length} content item{lessonContents.length !== 1 ? 's' : ''}
+                    {displayContents.length} content item{displayContents.length !== 1 ? 's' : ''}
                   </>
                 )}
               </p>
             </div>
+            {/* Edit Button */}
+            {courseInfo && onLessonUpdate && !isEditMode && (
+              <button
+                className="button is-small is-info is-outlined mr-3"
+                onClick={handleEditClick}
+                title="Edit Lesson"
+              >
+                <span className="icon is-small">
+                  <i className="fas fa-edit"></i>
+                </span>
+                <span>Edit</span>
+              </button>
+            )}
           </div>
         </div>
         <div className="card-header-icon">
@@ -129,6 +232,99 @@ const LessonExpander = ({ lesson, lessonContents }) => {
           animation: isExpanded ? 'fadeIn 0.3s ease-in' : 'none'
         }}
       >
+        {/* Edit Mode UI */}
+        {isEditMode && (
+          <div className="notification is-info is-light mb-4">
+            <div className="field">
+              <label className="label">
+                <span className="icon is-small mr-2">
+                  <i className="fas fa-magic"></i>
+                </span>
+                Edit Prompt
+              </label>
+              <p className="help mb-2">
+                Describe what changes you want to make to this lesson. The AI will regenerate the lesson based on your instructions.
+              </p>
+              <div className="control">
+                <textarea
+                  className="textarea"
+                  placeholder="e.g., Make the content more beginner-friendly, add more practical examples, focus on real-world applications..."
+                  value={editPrompt}
+                  onChange={(e) => setEditPrompt(e.target.value)}
+                  rows={3}
+                  disabled={isRegenerating}
+                />
+              </div>
+            </div>
+            
+            <div className="field is-grouped">
+              <div className="control">
+                <button
+                  className={`button is-primary ${isRegenerating ? 'is-loading' : ''}`}
+                  onClick={handleRegenerateLesson}
+                  disabled={!editPrompt.trim() || isRegenerating}
+                >
+                  <span className="icon is-small">
+                    <i className="fas fa-sync-alt"></i>
+                  </span>
+                  <span>Regenerate Lesson</span>
+                </button>
+              </div>
+              
+              {showPreviewChanges && (
+                <>
+                  <div className="control">
+                    <button
+                      className="button is-success"
+                      onClick={handleSaveChanges}
+                    >
+                      <span className="icon is-small">
+                        <i className="fas fa-check"></i>
+                      </span>
+                      <span>Save Changes</span>
+                    </button>
+                  </div>
+                  <div className="control">
+                    <button
+                      className="button is-danger is-outlined"
+                      onClick={handleDiscardChanges}
+                    >
+                      <span className="icon is-small">
+                        <i className="fas fa-times"></i>
+                      </span>
+                      <span>Discard Changes</span>
+                    </button>
+                  </div>
+                </>
+              )}
+              
+              {!showPreviewChanges && (
+                <div className="control">
+                  <button
+                    className="button is-light"
+                    onClick={handleDiscardChanges}
+                    disabled={isRegenerating}
+                  >
+                    <span className="icon is-small">
+                      <i className="fas fa-times"></i>
+                    </span>
+                    <span>Cancel</span>
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {showPreviewChanges && (
+              <div className="notification is-warning is-light mt-3 mb-0">
+                <span className="icon is-small mr-2">
+                  <i className="fas fa-eye"></i>
+                </span>
+                <strong>Preview Mode:</strong> Review the changes below. Click "Save Changes" to apply or "Discard Changes" to revert.
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Learning Objectives */}
         <div className="content mb-4">
           <h6 className="title is-6 mb-2 has-text-primary">
@@ -139,7 +335,7 @@ const LessonExpander = ({ lesson, lessonContents }) => {
           </h6>
           <div className="box has-background-info-light">
             <ul className="mb-0">
-              {lesson.what_you_will_learn?.map((item, idx) => (
+              {displayLesson.what_you_will_learn?.map((item, idx) => (
                 <li key={idx} className="mb-1">{item}</li>
               ))}
             </ul>
@@ -147,7 +343,7 @@ const LessonExpander = ({ lesson, lessonContents }) => {
         </div>
 
         {/* Lesson Content */}
-        {lessonContents && lessonContents.length > 0 && (
+        {displayContents && displayContents.length > 0 && (
           <div className="content">
             <h6 className="title is-6 mb-3 has-text-primary">
               <span className="icon is-small mr-2">
@@ -156,7 +352,7 @@ const LessonExpander = ({ lesson, lessonContents }) => {
               Lesson Content
             </h6>
             
-            {lessonContents.map((contentItem, index) => (
+            {displayContents.map((contentItem, index) => (
               <div key={index} className="mb-4">
                 {contentItem.content_type === 'text' && (
                   <div className="card">
@@ -342,6 +538,280 @@ const LogCard = ({ logEntry, index }) => {
                 </span>
                 <span>{isExpanded ? 'Show Less' : 'Show More'}</span>
               </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// QuestionExpander Component for Quiz Preview
+const QuestionExpander = ({
+  question,
+  questionIndex,
+  choices,
+  answers,
+  quizInfo = null,
+  documentContent = '',
+  onQuestionUpdate = null,
+  getAuthHeader = null
+}) => {
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regeneratedData, setRegeneratedData] = useState(null);
+  const [showPreviewChanges, setShowPreviewChanges] = useState(false);
+
+  const handleEditClick = (e) => {
+    e.stopPropagation();
+    setIsEditMode(true);
+  };
+
+  const handleRegenerateQuestion = async () => {
+    if (!editPrompt.trim() || !quizInfo || !getAuthHeader) return;
+    
+    setIsRegenerating(true);
+    try {
+      // Format current choices and answer for the API
+      const currentChoicesText = choices
+        ?.map((c, idx) => `${idx + 1}. ${c.choice_text}${c.is_correct ? ' (correct)' : ''}`)
+        .join('\n') || 'N/A';
+      
+      const currentAnswerText = answers
+        ?.map(a => a.answer_text)
+        .join(', ') || 'N/A';
+
+      const response = await fetch(`${API_BASE_URL}/api/question/regenerate`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          document_content: documentContent,
+          quiz_title: quizInfo.quiz_title,
+          quiz_description: quizInfo.description,
+          difficulty_level: quizInfo.difficulty_level,
+          question_id: question.question_id,
+          question_type: question.question_type,
+          question_text: question.question_text,
+          points: question.points,
+          current_choices: currentChoicesText,
+          current_answer: currentAnswerText,
+          user_prompt: editPrompt
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setRegeneratedData(data.data);
+          setShowPreviewChanges(true);
+        } else {
+          alert('Failed to regenerate question. Please try again.');
+        }
+      } else {
+        alert('Failed to regenerate question. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error regenerating question:', error);
+      alert('Error regenerating question. Please try again.');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleSaveChanges = () => {
+    if (onQuestionUpdate && regeneratedData) {
+      onQuestionUpdate(question.question_id, regeneratedData);
+    }
+    setIsEditMode(false);
+    setEditPrompt('');
+    setRegeneratedData(null);
+    setShowPreviewChanges(false);
+  };
+
+  const handleDiscardChanges = () => {
+    setIsEditMode(false);
+    setEditPrompt('');
+    setRegeneratedData(null);
+    setShowPreviewChanges(false);
+  };
+
+  // Use regenerated data if available for preview, otherwise use original
+  const displayQuestion = showPreviewChanges && regeneratedData ? regeneratedData.question : question;
+  const displayChoices = showPreviewChanges && regeneratedData ? regeneratedData.choices : choices;
+  const displayAnswers = showPreviewChanges && regeneratedData ? regeneratedData.answers : answers;
+
+  return (
+    <div className="card mb-4">
+      <div className="card-content">
+        <div className="content">
+          {/* Question Header */}
+          <div className="is-flex is-align-items-center is-justify-content-space-between mb-2">
+            <div className="is-flex is-align-items-center">
+              <span className="tag is-primary mr-2">Q{questionIndex + 1}</span>
+              <span className={`tag ${displayQuestion.question_type === 'Multiple Choice' ? 'is-info' : displayQuestion.question_type === 'Subjective' ? 'is-success' : 'is-warning'} mr-2`}>
+                {displayQuestion.question_type}
+              </span>
+              <span className="tag is-light">{displayQuestion.points} pts</span>
+              {showPreviewChanges && (
+                <span className="tag is-warning is-light ml-2">Preview</span>
+              )}
+            </div>
+            {/* Edit Button */}
+            {quizInfo && onQuestionUpdate && !isEditMode && (
+              <button
+                className="button is-small is-info is-outlined"
+                onClick={handleEditClick}
+                title="Edit Question"
+              >
+                <span className="icon is-small">
+                  <i className="fas fa-edit"></i>
+                </span>
+                <span>Edit</span>
+              </button>
+            )}
+          </div>
+
+          {/* Edit Mode UI */}
+          {isEditMode && (
+            <div className="notification is-info is-light mb-4">
+              <div className="field">
+                <label className="label">
+                  <span className="icon is-small mr-2">
+                    <i className="fas fa-magic"></i>
+                  </span>
+                  Edit Prompt
+                </label>
+                <p className="help mb-2">
+                  Describe what changes you want to make to this question. The AI will regenerate the question based on your instructions.
+                </p>
+                <div className="control">
+                  <textarea
+                    className="textarea"
+                    placeholder="e.g., Make the question harder, add more distractors, change to fill-in-the-blank format..."
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    rows={3}
+                    disabled={isRegenerating}
+                  />
+                </div>
+              </div>
+              
+              <div className="field is-grouped">
+                <div className="control">
+                  <button
+                    className={`button is-primary ${isRegenerating ? 'is-loading' : ''}`}
+                    onClick={handleRegenerateQuestion}
+                    disabled={!editPrompt.trim() || isRegenerating}
+                  >
+                    <span className="icon is-small">
+                      <i className="fas fa-sync-alt"></i>
+                    </span>
+                    <span>Regenerate Question</span>
+                  </button>
+                </div>
+                
+                {showPreviewChanges && (
+                  <>
+                    <div className="control">
+                      <button
+                        className="button is-success"
+                        onClick={handleSaveChanges}
+                      >
+                        <span className="icon is-small">
+                          <i className="fas fa-check"></i>
+                        </span>
+                        <span>Save Changes</span>
+                      </button>
+                    </div>
+                    <div className="control">
+                      <button
+                        className="button is-danger is-outlined"
+                        onClick={handleDiscardChanges}
+                      >
+                        <span className="icon is-small">
+                          <i className="fas fa-times"></i>
+                        </span>
+                        <span>Discard Changes</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+                
+                {!showPreviewChanges && (
+                  <div className="control">
+                    <button
+                      className="button is-light"
+                      onClick={handleDiscardChanges}
+                      disabled={isRegenerating}
+                    >
+                      <span className="icon is-small">
+                        <i className="fas fa-times"></i>
+                      </span>
+                      <span>Cancel</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {showPreviewChanges && (
+                <div className="notification is-warning is-light mt-3 mb-0">
+                  <span className="icon is-small mr-2">
+                    <i className="fas fa-eye"></i>
+                  </span>
+                  <strong>Preview Mode:</strong> Review the changes below. Click "Save Changes" to apply or "Discard Changes" to revert.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Question Text */}
+          <p className="has-text-weight-semibold mb-3">{displayQuestion.question_text}</p>
+          
+          {/* Multiple Choice Options */}
+          {displayQuestion.question_type === 'Multiple Choice' && displayChoices && (
+            <div className="content">
+              <p className="has-text-weight-semibold mb-2">Choices:</p>
+              {displayChoices.map((choice, idx) => (
+                <div key={choice.choice_id || idx} className="field">
+                  <div className="control">
+                    <label className="radio">
+                      <input type="radio" name={`question_${displayQuestion.question_id}`} disabled />
+                      <span className={`ml-2 ${choice.is_correct ? 'has-text-success has-text-weight-bold' : ''}`}>
+                        {choice.choice_text}
+                        {choice.is_correct && <span className="icon is-small ml-1"><i className="fas fa-check"></i></span>}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Subjective Answer */}
+          {displayQuestion.question_type === 'Subjective' && displayAnswers && (
+            <div className="content">
+              <p className="has-text-weight-semibold mb-2">Expected Answer:</p>
+              {displayAnswers.map((answer, idx) => (
+                <div key={answer.answer_id || idx} className="box has-background-light">
+                  <p className="has-text-weight-semibold">{answer.answer_text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Fill in the Blank Answer */}
+          {displayQuestion.question_type === 'Fill in the Blank' && displayAnswers && (
+            <div className="content">
+              <p className="has-text-weight-semibold mb-2">Correct Answer:</p>
+              {displayAnswers.map((answer, idx) => (
+                <span key={answer.answer_id || idx} className="tag is-success is-medium mr-2">
+                  {answer.answer_text}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -573,6 +1043,91 @@ function AdminAllCourse() {
     } finally {
       setUploading(false);
     }
+  };
+
+  // Handler for updating a single lesson after regeneration
+  const handleLessonUpdate = (lessonId, regeneratedData) => {
+    if (!previewData) return;
+    
+    // Update the lesson in previewData
+    const updatedLessons = previewData.output.lessons.map(lesson => {
+      if (lesson.lesson_id === lessonId) {
+        return {
+          ...lesson,
+          lesson_title: regeneratedData.lesson.lesson_title,
+          duration_hours: regeneratedData.lesson.duration_hours,
+          description: regeneratedData.lesson.description,
+          what_you_will_learn: regeneratedData.lesson.what_you_will_learn
+        };
+      }
+      return lesson;
+    });
+    
+    // Remove old lesson contents for this lesson and add new ones
+    const otherContents = previewData.output.lesson_contents.filter(
+      content => content.lesson_id !== lessonId
+    );
+    const newContents = [...otherContents, ...regeneratedData.lesson_contents];
+    
+    // Update previewData
+    setPreviewData({
+      ...previewData,
+      output: {
+        ...previewData.output,
+        lessons: updatedLessons,
+        lesson_contents: newContents
+      }
+    });
+  };
+
+  // Handler for updating a single question after regeneration
+  const handleQuestionUpdate = (questionId, regeneratedData) => {
+    if (!quizPreviewData) return;
+    
+    // Update the question in quizPreviewData
+    const updatedQuestions = quizPreviewData.output.questions.map(question => {
+      if (question.question_id === questionId) {
+        return {
+          ...question,
+          question_text: regeneratedData.question.question_text,
+          question_type: regeneratedData.question.question_type,
+          points: regeneratedData.question.points
+        };
+      }
+      return question;
+    });
+    
+    // Remove old choices for this question and add new ones with generated IDs
+    const otherChoices = quizPreviewData.output.choices.filter(
+      choice => choice.question_id !== questionId
+    );
+    const newChoices = regeneratedData.choices.map((choice, idx) => ({
+      choice_id: `${questionId}_choice_${idx}`,
+      question_id: questionId,
+      choice_text: choice.choice_text,
+      is_correct: choice.is_correct
+    }));
+    
+    // Remove old answers for this question and add new ones with generated IDs
+    const otherAnswers = quizPreviewData.output.answers.filter(
+      answer => answer.question_id !== questionId
+    );
+    const newAnswers = regeneratedData.answers.map((answer, idx) => ({
+      answer_id: `${questionId}_answer_${idx}`,
+      question_id: questionId,
+      answer_text: answer.answer_text
+    }));
+    
+    // Update quizPreviewData
+    setQuizPreviewData({
+      ...quizPreviewData,
+      output: {
+        ...quizPreviewData.output,
+        questions: updatedQuestions,
+        choices: [...otherChoices, ...newChoices],
+        answers: [...otherAnswers, ...newAnswers]
+      }
+    });
   };
 
   const handleCreateQuiz = async () => {
@@ -902,6 +1457,9 @@ function AdminAllCourse() {
                               key={lesson.lesson_id}
                               lesson={lesson}
                               lessonContents={lessonContents}
+                              courseInfo={previewData.output.course}
+                              onLessonUpdate={handleLessonUpdate}
+                              getAuthHeader={getAuthHeader}
                             />
                           );
                         })}
@@ -1083,63 +1641,28 @@ function AdminAllCourse() {
                     <div className="field">
                       <label className="label">Questions</label>
                       <div className="content">
-                        {quizPreviewData.output.questions?.map((question, index) => (
-                          <div key={question.question_id} className="card mb-4">
-                            <div className="card-content">
-                              <div className="content">
-                                <div className="is-flex is-align-items-center mb-2">
-                                  <span className="tag is-primary mr-2">Q{index + 1}</span>
-                                  <span className={`tag ${question.question_type === 'Multiple Choice' ? 'is-info' : question.question_type === 'Subjective' ? 'is-success' : 'is-warning'} mr-2`}>
-                                    {question.question_type}
-                                  </span>
-                                  <span className="tag is-light">{question.points} pts</span>
-                                </div>
-                                <p className="has-text-weight-semibold mb-3">{question.question_text}</p>
-                                
-                                {question.question_type === 'Multiple Choice' && (
-                                  <div className="content">
-                                    <p className="has-text-weight-semibold mb-2">Choices:</p>
-                                    {quizPreviewData.output.choices?.filter(choice => choice.question_id === question.question_id).map((choice, idx) => (
-                                      <div key={choice.choice_id} className="field">
-                                        <div className="control">
-                                          <label className="radio">
-                                            <input type="radio" name={`question_${question.question_id}`} disabled />
-                                            <span className={`ml-2 ${choice.is_correct ? 'has-text-success has-text-weight-bold' : ''}`}>
-                                              {choice.choice_text}
-                                              {choice.is_correct && <span className="icon is-small ml-1"><i className="fas fa-check"></i></span>}
-                                            </span>
-                                          </label>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                
-                                {question.question_type === 'Subjective' && (
-                                  <div className="content">
-                                    <p className="has-text-weight-semibold mb-2">Expected Answer:</p>
-                                    {quizPreviewData.output.answers?.filter(answer => answer.question_id === question.question_id).map((answer) => (
-                                      <div key={answer.answer_id} className="box has-background-light">
-                                        <p className="has-text-weight-semibold">{answer.answer_text}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                
-                                {question.question_type === 'Fill in the Blank' && (
-                                  <div className="content">
-                                    <p className="has-text-weight-semibold mb-2">Correct Answer:</p>
-                                    {quizPreviewData.output.answers?.filter(answer => answer.question_id === question.question_id).map((answer) => (
-                                      <span key={answer.answer_id} className="tag is-success is-medium">
-                                        {answer.answer_text}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        {quizPreviewData.output.questions?.map((question, index) => {
+                          const questionChoices = quizPreviewData.output.choices?.filter(
+                            choice => choice.question_id === question.question_id
+                          );
+                          const questionAnswers = quizPreviewData.output.answers?.filter(
+                            answer => answer.question_id === question.question_id
+                          );
+                          
+                          return (
+                            <QuestionExpander
+                              key={question.question_id}
+                              question={question}
+                              questionIndex={index}
+                              choices={questionChoices}
+                              answers={questionAnswers}
+                              quizInfo={quizPreviewData.output.quiz}
+                              documentContent={documentBase64}
+                              onQuestionUpdate={handleQuestionUpdate}
+                              getAuthHeader={getAuthHeader}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

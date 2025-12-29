@@ -380,7 +380,7 @@ function CourseDetailPage() {
 
       {/* Course Content */}
       <div className="container mt-4 mb-6">
-        <div className="columns">
+        <div className="columns course-content-section">
           {/* Lesson List */}
           <div className="column is-4">
             <div className="box course-lessons-card">
@@ -392,20 +392,16 @@ function CourseDetailPage() {
                     className={`lesson-item ${activeLesson?.lesson_id === lesson.lesson_id ? 'is-active' : ''}`}
                     onClick={() => handleLessonClick(lesson)}
                   >
-                    <div className="level is-mobile">
-                      <div className="level-left">
-                        <div className="level-item">
-                          {getStatusIcon(lesson.status)}
-                          <div className="ml-3">
-                            <div className="has-text-weight-semibold">{lesson.lesson_title}</div>
-                            <div className="is-size-7 has-text-grey">{lesson.duration_hours} hours</div>
-                          </div>
-                        </div>
+                    <div className="is-flex" style={{ alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                        {getStatusIcon(lesson.status)}
                       </div>
-                      <div className="level-right">
-                        <div className="level-item">
-                          <span className="is-size-7 has-text-grey">#{lesson.lesson_order}</span>
-                        </div>
+                      <div className="lesson-info" style={{ flex: 1, minWidth: 0 }}>
+                        <div className="lesson-title has-text-weight-semibold">{lesson.lesson_title}</div>
+                        <div className="is-size-7 has-text-grey">{lesson.duration_hours} hours</div>
+                      </div>
+                      <div style={{ flexShrink: 0 }}>
+                        <span className="is-size-7 has-text-grey">#{lesson.lesson_order}</span>
                       </div>
                     </div>
                   </div>
@@ -419,17 +415,13 @@ function CourseDetailPage() {
             <div className="box course-content-card">
               {activeLesson ? (
                 <>
-                  <div className="level mb-4">
-                    <div className="level-left">
-                      <div className="level-item">
-                        <h2 className="title is-3">{activeLesson.lesson_title}</h2>
-                      </div>
+                  <div className="is-flex mb-4" style={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                      <h2 className="title is-3" style={{ wordBreak: 'break-word' }}>{activeLesson.lesson_title}</h2>
                     </div>
-                    <div className="level-right">
-                      <div className="level-item">
-                        {getStatusIcon(activeLesson.status)}
-                        <span className="ml-2 has-text-weight-semibold">{activeLesson.status || 'Not Started'}</span>
-                      </div>
+                    <div className="is-flex" style={{ alignItems: 'center', flexShrink: 0 }}>
+                      {getStatusIcon(activeLesson.status)}
+                      <span className="ml-2 has-text-weight-semibold">{activeLesson.status || 'Not Started'}</span>
                     </div>
                   </div>
 

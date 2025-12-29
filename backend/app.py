@@ -127,6 +127,31 @@ class ChatRequest(BaseModel):
     message: str
     chat_history: List[ChatMessage] = []
 
+class LessonRegenerateRequest(BaseModel):
+    course_name: str
+    course_description: str
+    difficulty_level: str
+    lesson_id: str
+    lesson_order: int
+    lesson_title: str
+    duration_hours: int
+    what_you_will_learn: List[str]
+    current_content: str
+    user_prompt: str
+
+class QuestionRegenerateRequest(BaseModel):
+    document_content: str
+    quiz_title: str
+    quiz_description: str
+    difficulty_level: str
+    question_id: str
+    question_type: str
+    question_text: str
+    points: int
+    current_choices: str
+    current_answer: str
+    user_prompt: str
+
 # Authentication dependencies
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT token and return current user email"""
@@ -721,6 +746,142 @@ async def preview_course_with_agent(request: CoursePreviewRequest, current_user:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating course preview: {str(e)}"
+        )
+
+@app.post("/api/lesson/regenerate")
+async def regenerate_lesson(request: LessonRegenerateRequest, current_user: str = Depends(verify_token)):
+    """Regenerate a single lesson based on user's edit prompt"""
+    try:
+        # Initialize the CreateCourse agent
+        course_creator = CreateCourse()
+        
+        # Call the regenerate lesson method
+        result = await course_creator.regenerate_lesson(
+            course_name=request.course_name,
+            course_description=request.course_description,
+            difficulty_level=request.difficulty_level,
+            lesson_title=request.lesson_title,
+            lesson_order=request.lesson_order,
+            duration_hours=request.duration_hours,
+            what_you_will_learn=request.what_you_will_learn,
+            current_content=request.current_content,
+            user_prompt=request.user_prompt
+        )
+        
+        # Convert result to dict for response
+        regenerated_data = {
+            'lesson': {
+                'lesson_id': request.lesson_id,
+                'lesson_order': request.lesson_order,
+                'lesson_title': result.lesson.lesson_title,
+                'duration_hours': result.lesson.duration_hours,
+                'description': result.lesson.description,
+                'what_you_will_learn': result.lesson.what_you_will_learn
+            },
+            'lesson_contents': [
+                {
+                    'lesson_id': request.lesson_id,
+                    'content_order': content.content_order,
+                    'content_type': content.content_type,
+                    'content': content.content
+                }
+                for content in result.lesson_contents
+            ]
+        }
+        
+        return {
+            'success': True,
+            'message': 'Lesson regenerated successfully',
+            'data': regenerated_data
+        }
+        
+    except Exception as e:
+        print(f"Error in regenerate_lesson: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error regenerating lesson: {str(e)}"
+        )
+
+@app.post("/api/question/regenerate")
+async def regenerate_question(request: QuestionRegenerateRequest, current_user: str = Depends(verify_token)):
+    """Regenerate a single quiz question based on user's edit prompt"""
+    _id = None
+    try:
+        # Extract text from document if it's base64 encoded PDF
+        document_text = request.document_content
+        if request.document_content and len(request.document_content) > 100:
+            try:
+                _id = uuid.uuid4()
+                with open(f"./temp/{_id}.pdf", "wb") as f:
+                    f.write(base64.b64decode(request.document_content))
+                
+                loader = PyPDFLoader(f"./temp/{_id}.pdf")
+                docs = loader.lazy_load()
+                document_text = ""
+                for doc in docs:
+                    document_text += doc.page_content
+            except Exception as e:
+                print(f"Error extracting PDF text, using raw content: {str(e)}")
+                document_text = request.document_content
+        
+        # Initialize the CreateQuiz agent
+        quiz_creator = CreateQuiz()
+        
+        # Call the regenerate question method
+        result = await quiz_creator.regenerate_question(
+            document_content=document_text,
+            quiz_title=request.quiz_title,
+            quiz_description=request.quiz_description,
+            difficulty_level=request.difficulty_level,
+            question_type=request.question_type,
+            question_text=request.question_text,
+            points=request.points,
+            current_choices=request.current_choices,
+            current_answer=request.current_answer,
+            user_prompt=request.user_prompt
+        )
+        
+        # Convert result to dict for response
+        regenerated_data = {
+            'question': {
+                'question_id': request.question_id,
+                'question_text': result.question.question_text,
+                'question_type': result.question.question_type,
+                'points': result.question.points
+            },
+            'choices': [
+                {
+                    'choice_text': choice.choice_text,
+                    'is_correct': choice.is_correct
+                }
+                for choice in result.choices
+            ] if result.choices else [],
+            'answers': [
+                {
+                    'answer_text': answer.answer_text
+                }
+                for answer in result.answers
+            ] if result.answers else []
+        }
+        
+        # Cleanup temp file
+        if _id and os.path.exists(f"./temp/{_id}.pdf"):
+            os.remove(f"./temp/{_id}.pdf")
+        
+        return {
+            'success': True,
+            'message': 'Question regenerated successfully',
+            'data': regenerated_data
+        }
+        
+    except Exception as e:
+        # Cleanup temp file on error
+        if _id and os.path.exists(f"./temp/{_id}.pdf"):
+            os.remove(f"./temp/{_id}.pdf")
+        print(f"Error in regenerate_question: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error regenerating question: {str(e)}"
         )
 
 @app.post("/api/create-course/submit")
