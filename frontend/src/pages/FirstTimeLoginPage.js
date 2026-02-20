@@ -4,6 +4,7 @@ import './LoginPage.css';
 import projectLogo from '../assets/project_logo.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import { API_BASE_URL } from '../config/api';
 
 import Sidebar from '../component/Sidebar';
@@ -18,6 +19,7 @@ function FirstTimeLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { user, getAuthHeader, logout } = useAuth();
+  const { showAlert } = useAlert();
 
   // Redirect if user is already authenticated or not logged in
   useEffect(() => {
@@ -72,7 +74,7 @@ function FirstTimeLoginPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert('Profile updated successfully! Please login again with your new credentials.');
+        showAlert('Profile updated successfully! Please login again with your new credentials.', 'success');
         logout();
         navigate('/login');
       } else {

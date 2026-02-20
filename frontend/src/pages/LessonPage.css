@@ -405,6 +405,17 @@
   border-left: 4px solid var(--medium-grey);
 }
 
+/* Inline terms (formerly code) - subtle emphasis, no grey boxes */
+.lesson-inline-term {
+  font-weight: 600;
+  color: inherit;
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  font-size: inherit;
+  font-family: inherit;
+}
+
 /* Content section titles */
 .lesson-text-content .title.is-5,
 .lesson-image-content .title.is-5 {

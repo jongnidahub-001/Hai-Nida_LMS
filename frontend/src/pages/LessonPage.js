@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
@@ -11,6 +12,7 @@ import { API_BASE_URL } from '../config/api';
 function LessonPage() {
   const { courseId, lessonId } = useParams();
   const { user, logout, getAuthHeader } = useAuth();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   
   const [courseData, setCourseData] = useState(null);
@@ -268,11 +270,11 @@ function LessonPage() {
       } else {
         console.error('Failed to mark lesson complete:', responseData);
         // Show error message to user
-        alert(`Failed to mark lesson complete: ${responseData.message || 'Unknown error'}`);
+        showAlert(`Failed to mark lesson complete: ${responseData.message || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Error marking lesson complete:', error);
-      alert(`Error marking lesson complete: ${error.message}`);
+      showAlert(`Error marking lesson complete: ${error.message}`, 'error');
     } finally {
       setMarkCompleteLoading(false);
     }
@@ -508,7 +510,7 @@ function LessonPage() {
                       ),
                       code: ({inline, children, ...props}) => 
                         inline ? 
-                          <code className="tag is-light" {...props}>{children}</code> :
+                          <code className="lesson-inline-term" {...props}>{children}</code> :
                           <pre className="notification is-dark"><code {...props}>{children}</code></pre>,
                       table: ({children}) => (
                         <div className="table-container">

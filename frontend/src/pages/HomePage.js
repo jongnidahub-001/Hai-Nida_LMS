@@ -261,10 +261,10 @@ function HomePage() {
         <div className="columns">
           <div className="column">
             <div className="box home-overview-card" style={{ height: '100%' }}>
-              <div className="is-size-5 has-text-weight-bold mb-2">MBA Program</div>
-              <div className="is-size-7 mb-2">Stay focused and connected—your MBA journey continues. With every activity, project, and lesson, you're getting closer to your goals. Follow your schedule and keep up with MBA Program activities.</div>
-              <div className="is-size-7 mb-2">John Doe <span className="tag is-info is-light ml-2">MBA Preview</span></div>
-              <div className="is-size-7">Course update</div>
+              <div className="is-size-5 has-text-weight-bold mb-2">About Hi HR</div>
+              <div className="is-size-7 mb-2">Hi HR is a Learning Management System (LMS) for professional development. Browse and enroll in courses, study lessons with AI-powered chat support, and take quizzes to test your knowledge.</div>
+              <div className="is-size-7 mb-2"><strong>Key features:</strong> Course catalog · AI tutoring · Progress tracking · Quizzes</div>
+              <div className="is-size-7">Go to <strong>All Courses</strong> to explore and enroll in available courses.</div>
             </div>
           </div>
           <div className="column">

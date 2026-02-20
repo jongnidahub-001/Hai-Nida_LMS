@@ -7,7 +7,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        - REACT_APP_API_BASE_URL=http://34.87.174.205:5000
+        - REACT_APP_API_BASE_URL=http://34.87.174.205:5000 #http://34.87.174.205:5000
     ports:
       - "80:80"  # Serve on port 80
     depends_on:

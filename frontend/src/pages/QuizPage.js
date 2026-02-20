@@ -20,6 +20,7 @@ function QuizPage() {
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [score, setScore] = useState(null);
   const [evaluatingAnswers, setEvaluatingAnswers] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
 
   useEffect(() => {
     fetchQuiz();
@@ -110,125 +111,84 @@ function QuizPage() {
     setEvaluatingAnswers(true);
     
     try {
-      // Calculate score
-      let totalScore = 0;
-      let totalPoints = 0;
+      const authHeader = getAuthHeader();
       
-      // Process each question
-      for (const question of questions) {
-        totalPoints += question.points || 1;
+      // Build evaluation tasks - run all AI evaluations IN PARALLEL (single pass, no duplicate calls)
+      const evalTasks = Object.entries(answers).map(([questionId, answer]) => {
+        const question = questions.find(q => q.question_id.toString() === questionId.toString());
+        if (!question) {
+          return Promise.resolve({ questionId, answer, isCorrect: false, type: 'unknown' });
+        }
         
         if (question.question_type === 'choices' || question.question_type === 'Multiple Choice') {
-          const selectedChoice = question.choices.find(c => c.choice_id === answers[question.question_id]);
-          if (selectedChoice?.is_correct) {
-            totalScore += question.points || 1;
-          }
-        } else if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank' || 
-                   question.question_type === 'subjective' || question.question_type === 'Subjective') {
-          // Use AI evaluation for fill-in-the-blank and subjective questions
-          const userAnswer = answers[question.question_id];
-          
-          if (userAnswer && userAnswer.trim() !== '') {
-            try {
-              const evaluationResponse = await fetch(`${API_BASE_URL}/api/quiz/evaluate-answer`, {
-                method: 'POST',
-                headers: {
-                  ...getAuthHeader(),
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  question_id: question.question_id,
-                  question_text: question.question_text,
-                  correct_answer: question.correct_answer,
-                  user_answer: userAnswer,
-                  question_type: question.question_type
-                })
-              });
-              
-              if (evaluationResponse.ok) {
-                const evaluationData = await evaluationResponse.json();
-                if (evaluationData.success && evaluationData.is_correct) {
-                  totalScore += question.points || 1;
-                }
-              } else {
-                console.error('Failed to evaluate answer for question:', question.question_id);
-                // Fallback to simple string matching for fill-in-the-blank
-                if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
-                  if (userAnswer.toLowerCase() === question.correct_answer?.toLowerCase()) {
-                    totalScore += question.points || 1;
-                  }
-                }
-              }
-            } catch (evalError) {
-              console.error('Error evaluating answer:', evalError);
-              // Fallback to simple string matching for fill-in-the-blank
-              if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
-                if (userAnswer.toLowerCase() === question.correct_answer?.toLowerCase()) {
-                  totalScore += question.points || 1;
-                }
-              }
-            }
-          }
+          const selectedChoice = question.choices.find(c => c.choice_id === answer);
+          return Promise.resolve({
+            questionId,
+            answer,
+            isCorrect: selectedChoice?.is_correct || false,
+            type: question.question_type
+          });
         }
-      }
+        
+        if ((question.question_type === 'fill' || question.question_type === 'Fill in the Blank' ||
+             question.question_type === 'subjective' || question.question_type === 'Subjective') &&
+            answer && answer.trim() !== '') {
+          return fetch(`${API_BASE_URL}/api/quiz/evaluate-answer`, {
+            method: 'POST',
+            headers: { ...authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question_id: question.question_id,
+              question_text: question.question_text,
+              correct_answer: question.correct_answer,
+              user_answer: answer,
+              question_type: question.question_type
+            })
+          })
+            .then(async (res) => {
+              if (res.ok) {
+                const data = await res.json();
+                return { questionId, answer, isCorrect: data.success && data.is_correct, type: question.question_type };
+              }
+              if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
+                return {
+                  questionId,
+                  answer,
+                  isCorrect: answer.toLowerCase() === question.correct_answer?.toLowerCase(),
+                  type: question.question_type
+                };
+              }
+              return { questionId, answer, isCorrect: false, type: question.question_type };
+            })
+            .catch(() => {
+              if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
+                return {
+                  questionId,
+                  answer,
+                  isCorrect: answer?.toLowerCase() === question.correct_answer?.toLowerCase(),
+                  type: question.question_type
+                };
+              }
+              return { questionId, answer, isCorrect: false, type: question.question_type };
+            });
+        }
+        
+        return Promise.resolve({ questionId, answer, isCorrect: false, type: question.question_type || 'unknown' });
+      });
+      
+      const results = await Promise.all(evalTasks);
       
       setEvaluatingAnswers(false);
       
-      // Convert answers object to array format expected by backend
-      const answersArray = await Promise.all(Object.entries(answers).map(async ([questionId, answer]) => {
-        const question = questions.find(q => q.question_id.toString() === questionId.toString());
-        let isCorrect = false;
-        
-        if (question) {
-          if (question.question_type === 'choices' || question.question_type === 'Multiple Choice') {
-            const selectedChoice = question.choices.find(c => c.choice_id === answer);
-            isCorrect = selectedChoice?.is_correct || false;
-          } else if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank' || 
-                     question.question_type === 'subjective' || question.question_type === 'Subjective') {
-            if (answer && answer.trim() !== '') {
-              try {
-                const evaluationResponse = await fetch(`${API_BASE_URL}/api/quiz/evaluate-answer`, {
-                  method: 'POST',
-                  headers: {
-                    ...getAuthHeader(),
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    question_id: question.question_id,
-                    question_text: question.question_text,
-                    correct_answer: question.correct_answer,
-                    user_answer: answer,
-                    question_type: question.question_type
-                  })
-                });
-                
-                if (evaluationResponse.ok) {
-                  const evaluationData = await evaluationResponse.json();
-                  isCorrect = evaluationData.success && evaluationData.is_correct;
-                } else {
-                  // Fallback to simple string matching for fill-in-the-blank
-                  if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
-                    isCorrect = answer.toLowerCase() === question.correct_answer?.toLowerCase();
-                  }
-                }
-              } catch (evalError) {
-                console.error('Error evaluating answer:', evalError);
-                // Fallback to simple string matching for fill-in-the-blank
-                if (question.question_type === 'fill' || question.question_type === 'Fill in the Blank') {
-                  isCorrect = answer.toLowerCase() === question.correct_answer?.toLowerCase();
-                }
-              }
-            }
-          }
-        }
-        
-        return {
-          question_id: questionId,
-          answer: answer,
-          type: question ? question.question_type : 'unknown',
-          result: isCorrect
-        };
+      const answersArray = results.map(({ questionId, answer, isCorrect, type }) => ({
+        question_id: questionId,
+        answer,
+        type,
+        result: isCorrect
       }));
+      
+      const totalPoints = questions.reduce((s, q) => s + (q.points || 1), 0);
+      const totalScore = results.reduce((s, r) => 
+        s + (r.isCorrect ? (questions.find(q => q.question_id.toString() === r.questionId)?.points || 1) : 0), 0);
       
       const submissionData = {
         course_id: courseId,
@@ -267,6 +227,7 @@ function QuizPage() {
           total_points: totalPoints,
           percentage: (totalScore / totalPoints) * 100
         });
+        setAnalysis(data.analysis || null);
         setQuizCompleted(true);
       } else {
         setError(data.message || 'Failed to submit quiz');
@@ -401,28 +362,94 @@ function QuizPage() {
           <div className="box quiz-complete-card">
             <h2 className="title is-2 has-text-centered mb-6">Quiz Completed!</h2>
             
-            <div className="has-text-centered mb-6">
-              <div className="score-circle">
-                <span className="score-percentage">{Math.round(score.percentage)}%</span>
-                <span className="score-fraction">{score.score}/{score.total_points}</span>
+            <div className="quiz-complete-layout">
+              <div className="quiz-complete-left">
+                <div className="has-text-centered mb-4">
+                  <div className="score-circle">
+                    <span className="score-percentage">{Math.round(score.percentage)}%</span>
+                    <span className="score-fraction">{score.score}/{score.total_points}</span>
+                  </div>
+                </div>
+                <p className="is-size-5 has-text-centered">
+                  {score.percentage >= 70 ? 
+                    "Congratulations! You've passed the quiz!" :
+                    "You didn't pass the quiz. Review the course material and try again later."}
+                </p>
+              </div>
+              
+              <div className="quiz-complete-right">
+                {analysis && (analysis.strengths?.length || analysis.weaknesses?.length || analysis.related_lessons?.length) > 0 ? (
+                  <div className="quiz-analysis">
+                    {analysis.strengths?.length > 0 && (
+                      <div className="quiz-analysis-card quiz-analysis-strength mb-4">
+                        <h4 className="title is-5">
+                          <span className="icon has-text-success"><i className="fas fa-check-circle"></i></span>
+                          Strength
+                        </h4>
+                        <ul className="mb-0">
+                          {analysis.strengths.map((s, i) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {analysis.weaknesses?.length > 0 && (
+                      <div className="quiz-analysis-card quiz-analysis-weakness mb-4">
+                        <h4 className="title is-5">
+                          <span className="icon has-text-danger"><i className="fas fa-exclamation-circle"></i></span>
+                          Weakness
+                        </h4>
+                        <ul className="mb-0">
+                          {analysis.weaknesses.map((w, i) => (
+                            <li key={i}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {analysis.related_lessons?.length > 0 && (
+                      <div className="quiz-analysis-recommendations">
+                        <h4 className="title is-5 mb-3">
+                          <span className="icon has-text-info"><i className="fas fa-book-open"></i></span>
+                          Recommendation
+                        </h4>
+                        <div className="quiz-recommendation-cards">
+                          {analysis.related_lessons.map((l, i) => (
+                            <a
+                              key={i}
+                              href={`/course/${l.course_id}/lesson/${l.lesson_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="quiz-recommendation-card"
+                            >
+                              <div className="quiz-recommendation-card-body">
+                                <div className="quiz-recommendation-number">{i + 1}</div>
+                                <div className="quiz-recommendation-content">
+                                  <div className="quiz-recommendation-lesson">{l.lesson_title}</div>
+                                  <div className="quiz-recommendation-course">{l.course_name}</div>
+                                </div>
+                                <span className="icon quiz-recommendation-arrow"><i className="fas fa-chevron-right"></i></span>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="quiz-analysis-placeholder">
+                    <p className="has-text-grey">Analysis will appear here when available.</p>
+                  </div>
+                )}
               </div>
             </div>
             
-            <div className="content has-text-centered">
-              <p className="is-size-5 mb-4">
-                {score.percentage >= 70 ? 
-                  "Congratulations! You've passed the quiz!" :
-                  "You didn't pass the quiz. Review the course material and try again later."}
-              </p>
-              
-              <div className="buttons is-centered">
-                <button 
-                  className="button is-primary"
-                  onClick={() => navigate(`/course/${courseId}`)}
-                >
-                  Back to Course
-                </button>
-              </div>
+            <div className="buttons is-centered mt-5">
+              <button 
+                className="button is-primary"
+                onClick={() => navigate(`/course/${courseId}`)}
+              >
+                Back to Course
+              </button>
             </div>
           </div>
         </div>

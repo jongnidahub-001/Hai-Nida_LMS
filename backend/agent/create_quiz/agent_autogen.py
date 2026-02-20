@@ -145,15 +145,17 @@ Instructions:
 - Assign appropriate point values to questions based on **{difficulty_level}** complexity.
 - Set the quiz difficulty_level to **{difficulty_level}** in the output.
 - Ensure all questions maintain consistency with the **{difficulty_level}** difficulty level.
-- Use external knowledge to enhance question quality if the document lacks sufficient detail.
 
+**SOURCE PRIORITY (CRITICAL):**
+- The document is the PRIMARY source. Questions, answers, and key terms MUST be grounded in the document content.
+- Use external knowledge ONLY to enhance question quality when the document lacks sufficient detail - never replace or contradict document content.
 
 Here is the number of questions you need to create: {number_of_questions}
 here is the number of choices you need to create: {number_of_choices}
 here is the number of Subjective questions you need to create: {number_of_subjective_questions}
 here is the number of Fill in the Blank questions you need to create: {number_of_fill_in_the_blank_questions}
 
-Here is the document content:
+Here is the document content (PRIMARY SOURCE):
 {document_content} 
 
 

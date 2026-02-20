@@ -11,6 +11,16 @@
   color: var(--primary-black);
 }
 
+.assessment-taken-btn {
+  color: #363636 !important;
+  background-color: #f5f5f5 !important;
+  border-color: #dbdbdb !important;
+}
+
+.assessment-taken-btn .icon {
+  color: #363636;
+}
+
 .course-progress-card {
   background: var(--primary-white);
   border-radius: 12px;

@@ -186,6 +186,7 @@ Instructions:
 - ALWAYS add a blank line between paragraphs
 - ALWAYS add a blank line before bullet lists or numbered lists
 - NEVER run headings into text like "some text### Heading" - this breaks rendering
+- **DO NOT use inline backticks (\`term\`) to highlight or emphasize key terms** - they create grey code boxes that break sentence flow. Use **bold** for emphasis instead (e.g. **Defense-in-depth**). Reserve backticks ONLY for actual code snippets, variable names, or file paths.
 - Example of CORRECT formatting:
   ```
   This is a paragraph about neural networks.
@@ -204,10 +205,14 @@ Instructions:
   This is a paragraph about neural networks.### 2.1 Neural Networks Overview
   Neural networks are computational models...#### Key Concepts:- Concept 1
   ```
-- Use external data (own knowledge) to fulfill gaps if the document lacks enough information.
+**SOURCE PRIORITY (CRITICAL):**
+- The document below is the PRIMARY source. All key terms, definitions, concepts, structure, and facts from the document MUST appear in the course content.
+- Use external knowledge ONLY to: (1) fill gaps where the document lacks detail, (2) add examples or explanations that SUPPORT the document's content, (3) enrich lessons without replacing or omitting document content.
+- Never replace or omit key content from the document with external information.
+
 - Ensure the entire course maintains consistency with the **{difficulty_level}** difficulty level.
 
-Here is the document content:
+Here is the document content (PRIMARY SOURCE - preserve all key content):
 {document_content}
 
 
@@ -236,6 +241,7 @@ Backstory: With over 10 years of experience in education and technical writing, 
    - ✓ Lists have a blank line before the first item
    - ✓ No headings running into text (e.g., "text### Heading" is WRONG)
    - ✓ No paragraphs running together without line breaks
+   - ✓ No inline backticks (\`term\`) used for emphasis - use **bold** instead (backticks create grey boxes that break flow)
    
    **If you see formatting like this, REJECT and ask for fixes:**
    - "some text### 2.1 Heading" ← WRONG (missing line break before ###)
@@ -403,6 +409,7 @@ Regenerate and improve a lesson based on the user's prompt/instructions. You mus
 - ALWAYS add a blank line AFTER every heading
 - ALWAYS add a blank line between paragraphs
 - ALWAYS add a blank line before bullet lists or numbered lists
+- **DO NOT use inline backticks (\`term\`) for emphasis** - use **bold** instead. Backticks create grey boxes that break readability. Use backticks ONLY for actual code or file paths.
 
 **CORRECT Example:**
 ```

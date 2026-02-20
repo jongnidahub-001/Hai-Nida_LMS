@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { API_BASE_URL } from '../config/api';
@@ -55,6 +56,7 @@ const LessonExpander = ({
   onLessonUpdate = null,
   getAuthHeader = null 
 }) => {
+  const { showAlert } = useAlert();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
@@ -65,11 +67,12 @@ const LessonExpander = ({
   const formatMarkdownContent = (content) => {
     if (!content) return '';
     
-    // Basic markdown formatting for display
+    // Basic markdown formatting for display (inline backticks -> bold to avoid grey boxes)
     return content
       .replace(/^### (.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
       .replace(/^## (.*$)/gim, '<h3 class="title is-4 mt-5 mb-3">$1</h3>')
       .replace(/^# (.*$)/gim, '<h2 class="title is-3 mt-5 mb-3">$1</h2>')
+      .replace(/`([^`]+)`/g, '<strong>$1</strong>')  // inline backticks -> bold (avoids grey code boxes)
       .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/gim, '<em>$1</em>')
       .replace(/^- (.*$)/gim, '<li>$1</li>')
@@ -120,14 +123,14 @@ const LessonExpander = ({
           setRegeneratedData(data.data);
           setShowPreviewChanges(true);
         } else {
-          alert('Failed to regenerate lesson. Please try again.');
+          showAlert('Failed to regenerate lesson. Please try again.', 'error');
         }
       } else {
-        alert('Failed to regenerate lesson. Please try again.');
+        showAlert('Failed to regenerate lesson. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error regenerating lesson:', error);
-      alert('Error regenerating lesson. Please try again.');
+      showAlert('Error regenerating lesson. Please try again.', 'error');
     } finally {
       setIsRegenerating(false);
     }
@@ -557,6 +560,7 @@ const QuestionExpander = ({
   onQuestionUpdate = null,
   getAuthHeader = null
 }) => {
+  const { showAlert } = useAlert();
   const [isEditMode, setIsEditMode] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -609,14 +613,14 @@ const QuestionExpander = ({
           setRegeneratedData(data.data);
           setShowPreviewChanges(true);
         } else {
-          alert('Failed to regenerate question. Please try again.');
+          showAlert('Failed to regenerate question. Please try again.', 'error');
         }
       } else {
-        alert('Failed to regenerate question. Please try again.');
+        showAlert('Failed to regenerate question. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error regenerating question:', error);
-      alert('Error regenerating question. Please try again.');
+      showAlert('Error regenerating question. Please try again.', 'error');
     } finally {
       setIsRegenerating(false);
     }
@@ -822,6 +826,7 @@ const QuestionExpander = ({
 
 function AdminAllCourse() {
   const { user, getAuthHeader } = useAuth();
+  const { showAlert, showConfirm } = useAlert();
   const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -847,6 +852,19 @@ function AdminAllCourse() {
   
   // Store parameters for regeneration
   const [courseParams, setCourseParams] = useState(null);
+
+  // Track task_id when previewing from Background Task (to update status to 'generated' on quiz submit)
+  const [currentPreviewTaskId, setCurrentPreviewTaskId] = useState(null);
+
+  // Background tasks state
+  const [activeMainTab, setActiveMainTab] = useState('courses'); // 'courses' or 'process'
+  const [backgroundTasks, setBackgroundTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [taskStats, setTaskStats] = useState({ pending: 0, generating: 0, done: 0, generated: 0, error: 0 });
+  
+  // Toast notification state
+  const [toasts, setToasts] = useState([]);
+  const [previousTaskStatuses, setPreviousTaskStatuses] = useState({});
 
   // Helper functions for number inputs
   const handleNumberChange = (setter, value, defaultValue, min = 0, max = 50) => {
@@ -877,7 +895,89 @@ function AdminAllCourse() {
       return;
     }
     fetchCourses();
+    fetchBackgroundTasks();
   }, [user, navigate]);
+
+  // Poll for task updates when on Process tab or when there are active tasks
+  useEffect(() => {
+    const hasActiveTasks = taskStats.pending > 0 || taskStats.generating > 0;
+    
+    if (activeMainTab === 'process' || hasActiveTasks) {
+      const interval = setInterval(() => {
+        fetchBackgroundTasks();
+      }, 5000); // Poll every 5 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [activeMainTab, taskStats.pending, taskStats.generating]);
+
+  // Check for task completions and show toast notifications
+  useEffect(() => {
+    backgroundTasks.forEach(task => {
+      const prevStatus = previousTaskStatuses[task.task_id];
+      
+      // If task just completed (was generating, now done)
+      if (prevStatus === 'generating' && task.status === 'done') {
+        showToast(`✅ ${task.difficulty_level} course generated successfully!`, 'success');
+      }
+      // If task just failed
+      if (prevStatus === 'generating' && task.status === 'error') {
+        showToast(`❌ ${task.difficulty_level} course generation failed`, 'danger');
+      }
+    });
+    
+    // Update previous statuses
+    const newStatuses = {};
+    backgroundTasks.forEach(task => {
+      newStatuses[task.task_id] = task.status;
+    });
+    setPreviousTaskStatuses(newStatuses);
+  }, [backgroundTasks]);
+
+  // Toast notification functions
+  const showToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Fetch background tasks
+  const fetchBackgroundTasks = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/background-tasks`, {
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const tasks = data.tasks || [];
+        setBackgroundTasks(tasks);
+        
+        // Calculate stats
+        const stats = {
+          pending: tasks.filter(t => t.status === 'pending').length,
+          generating: tasks.filter(t => t.status === 'generating').length,
+          done: tasks.filter(t => t.status === 'done').length,
+          generated: tasks.filter(t => t.status === 'generated').length,
+          error: tasks.filter(t => t.status === 'error').length
+        };
+        setTaskStats(stats);
+      }
+    } catch (error) {
+      console.error('Error fetching background tasks:', error);
+    }
+  };
 
   const fetchCourses = async () => {
     try {
@@ -906,7 +1006,7 @@ function AdminAllCourse() {
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file);
     } else {
-      alert('Please select a PDF file');
+      showAlert('Please select a PDF file', 'warning');
       event.target.value = '';
     }
   };
@@ -920,7 +1020,7 @@ function AdminAllCourse() {
     
     const totalQuestionTypes = choices + subjective + fillInBlank;
     if (totalQuestionTypes > totalQuestions) {
-      alert(`Total question types (${totalQuestionTypes}) cannot exceed total questions (${totalQuestions})`);
+      showAlert(`Total question types (${totalQuestionTypes}) cannot exceed total questions (${totalQuestions})`, 'warning');
       return false;
     }
     return true;
@@ -954,7 +1054,7 @@ function AdminAllCourse() {
 
   const handleUploadDocument = async () => {
     if (!selectedFile) {
-      alert('Please select a PDF file first');
+      showAlert('Please select a PDF file first', 'warning');
       return;
     }
 
@@ -966,17 +1066,16 @@ function AdminAllCourse() {
     try {
       const base64Document = await convertToBase64(selectedFile);
       
-      // Store parameters for regeneration
-      const params = {
-        difficulty,
+      // Build quiz parameters
+      const quizParams = {
         numberOfQuestions: typeof numberOfQuestions === 'number' ? numberOfQuestions : parseInt(numberOfQuestions) || 10,
         numberOfChoices: typeof numberOfChoices === 'number' ? numberOfChoices : parseInt(numberOfChoices) || 4,
         numberOfSubjectiveQuestions: typeof numberOfSubjectiveQuestions === 'number' ? numberOfSubjectiveQuestions : parseInt(numberOfSubjectiveQuestions) || 2,
         numberOfFillInTheBlankQuestions: typeof numberOfFillInTheBlankQuestions === 'number' ? numberOfFillInTheBlankQuestions : parseInt(numberOfFillInTheBlankQuestions) || 2
       };
-      setCourseParams(params);
       
-      const response = await fetch(`${API_BASE_URL}/api/create-course/preview`, {
+      // NEW: Call batch create endpoint to generate all 3 difficulty levels
+      const response = await fetch(`${API_BASE_URL}/api/background-tasks/batch-create`, {
         method: 'POST',
         headers: {
           ...getAuthHeader(),
@@ -984,36 +1083,200 @@ function AdminAllCourse() {
         },
         body: JSON.stringify({
           DocumentBased64: base64Document,
-          difficulty_level: difficulty
+          document_name: selectedFile.name,
+          quiz_params: quizParams
         })
       });
 
       if (response.ok) {
         const data = await response.json();
-        setPreviewData(data);
-        setDocumentBase64(base64Document); // Store document for quiz creation
         setShowImportModal(false);
-        setShowPreview(true);
         setSelectedFile(null);
+        resetModalForm();
+        setActiveMainTab('process'); // Switch to Process tab
+        fetchBackgroundTasks(); // Refresh tasks
+        showToast(`🚀 Created ${data.tasks.length} generation tasks for all difficulty levels!`, 'success');
       } else {
-        alert('Failed to process document. Please try again.');
+        showToast('Failed to create tasks. Please try again.', 'danger');
       }
     } catch (error) {
       console.error('Error uploading document:', error);
-      alert('Error processing document. Please try again.');
+      showToast('Error processing document. Please try again.', 'danger');
     } finally {
       setUploading(false);
     }
   };
 
+  // Handle preview task from Process tab
+  const handlePreviewTask = async (task) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/background-tasks/${task.task_id}`, {
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const taskData = data.task;
+        
+        if (taskData.result_data) {
+          setPreviewData(taskData.result_data);
+          setCourseParams(taskData.result_data.quiz_params || taskData.quiz_params);
+          setDocumentBase64(taskData.document_base64);
+          setCurrentPreviewTaskId(task.task_id);
+          setShowPreview(true);
+        } else {
+          showToast('No preview data available for this task', 'warning');
+        }
+      } else {
+        showToast('Failed to load task preview', 'danger');
+      }
+    } catch (error) {
+      console.error('Error loading task preview:', error);
+      showToast('Error loading task preview', 'danger');
+    }
+  };
+
+  // Handle delete task
+  const handleDeleteTask = async (taskId) => {
+    const confirmed = await showConfirm('Are you sure you want to delete this task?', { 
+      title: 'Confirm Delete',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/background-tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeader()
+        }
+      });
+      
+      if (response.ok) {
+        showToast('Task deleted successfully', 'success');
+        fetchBackgroundTasks();
+      } else {
+        showToast('Failed to delete task', 'danger');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      showToast('Error deleting task', 'danger');
+    }
+  };
+
+  // Handle retry failed task
+  const handleRetryTask = async (taskId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/background-tasks/${taskId}/retry`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        showToast(`Task queued for retry: ${data.message}`, 'info');
+        fetchBackgroundTasks();
+      } else {
+        const error = await response.json();
+        showToast(error.detail || 'Failed to retry task', 'danger');
+      }
+    } catch (error) {
+      console.error('Error retrying task:', error);
+      showToast('Error retrying task', 'danger');
+    }
+  };
+
+  // Get status badge component
+  const getStatusBadge = (task) => {
+    switch (task.status) {
+      case 'pending':
+        return (
+          <span className="tag is-light">
+            <span className="icon is-small mr-1">
+              <i className="fas fa-clock"></i>
+            </span>
+            Queued
+          </span>
+        );
+      case 'generating':
+        return (
+          <div>
+            <span className="tag is-warning">
+              <span className="icon is-small mr-1">
+                <i className="fas fa-spinner fa-spin"></i>
+              </span>
+              Generating
+            </span>
+            {task.progress && (
+              <div className="mt-1">
+                <progress 
+                  className="progress is-small is-warning" 
+                  value={task.progress_percent || 0} 
+                  max="100"
+                  style={{ marginBottom: '2px' }}
+                >
+                  {task.progress_percent}%
+                </progress>
+                <span className="is-size-7 has-text-grey">{task.progress}</span>
+              </div>
+            )}
+          </div>
+        );
+      case 'done':
+        return (
+          <span className="tag is-success">
+            <span className="icon is-small mr-1">
+              <i className="fas fa-check"></i>
+            </span>
+            Completed
+          </span>
+        );
+      case 'generated':
+        return (
+          <span className="tag is-info">
+            <span className="icon is-small mr-1">
+              <i className="fas fa-database"></i>
+            </span>
+            Generated
+          </span>
+        );
+      case 'error':
+        return (
+          <div>
+            <span className="tag is-danger" title={task.error_message}>
+              <span className="icon is-small mr-1">
+                <i className="fas fa-exclamation-triangle"></i>
+              </span>
+              Failed
+            </span>
+            {task.retry_count > 0 && (
+              <span className="is-size-7 has-text-grey ml-1">
+                (Retry {task.retry_count}/{task.max_retries || 3})
+              </span>
+            )}
+          </div>
+        );
+      default:
+        return <span className="tag">{task.status}</span>;
+    }
+  };
+
   const handleReGenerate = async () => {
     if (!documentBase64) {
-      alert('No document to regenerate from');
+      showAlert('No document to regenerate from', 'warning');
       return;
     }
     
     if (!courseParams) {
-      alert('No course parameters available for regeneration');
+      showAlert('No course parameters available for regeneration', 'warning');
       return;
     }
     
@@ -1035,11 +1298,11 @@ function AdminAllCourse() {
         const data = await response.json();
         setPreviewData(data);
       } else {
-        alert('Failed to regenerate course. Please try again.');
+        showAlert('Failed to regenerate course. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error regenerating course:', error);
-      alert('Error regenerating course. Please try again.');
+      showAlert('Error regenerating course. Please try again.', 'error');
     } finally {
       setUploading(false);
     }
@@ -1132,12 +1395,12 @@ function AdminAllCourse() {
 
   const handleCreateQuiz = async () => {
     if (!documentBase64) {
-      alert('No document to create quiz from');
+      showAlert('No document to create quiz from', 'warning');
       return;
     }
     
     if (!courseParams) {
-      alert('No course parameters available for quiz creation');
+      showAlert('No course parameters available for quiz creation', 'warning');
       return;
     }
     
@@ -1166,11 +1429,11 @@ function AdminAllCourse() {
         setShowQuizPreview(true);
         // Keep previewData available for quiz submission
       } else {
-        alert('Failed to create quiz. Please try again.');
+        showAlert('Failed to create quiz. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error creating quiz:', error);
-      alert('Error creating quiz. Please try again.');
+      showAlert('Error creating quiz. Please try again.', 'error');
     } finally {
       setCreatingQuiz(false);
     }
@@ -1178,12 +1441,12 @@ function AdminAllCourse() {
 
   const handleReGenerateQuiz = async () => {
     if (!documentBase64) {
-      alert('No document to regenerate quiz from');
+      showAlert('No document to regenerate quiz from', 'warning');
       return;
     }
     
     if (!courseParams) {
-      alert('No course parameters available for quiz regeneration');
+      showAlert('No course parameters available for quiz regeneration', 'warning');
       return;
     }
     
@@ -1209,11 +1472,11 @@ function AdminAllCourse() {
         const data = await response.json();
         setQuizPreviewData(data);
       } else {
-        alert('Failed to regenerate quiz. Please try again.');
+        showAlert('Failed to regenerate quiz. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error regenerating quiz:', error);
-      alert('Error regenerating quiz. Please try again.');
+      showAlert('Error regenerating quiz. Please try again.', 'error');
     } finally {
       setCreatingQuiz(false);
     }
@@ -1221,12 +1484,12 @@ function AdminAllCourse() {
 
   const handleSubmitQuiz = async () => {
     if (!quizPreviewData) {
-      alert('No quiz data to submit');
+      showAlert('No quiz data to submit', 'warning');
       return;
     }
     
     if (!previewData) {
-      alert('No course data to submit. Please generate course first.');
+      showAlert('No course data to submit. Please generate course first.', 'warning');
       return;
     }
     
@@ -1259,27 +1522,30 @@ function AdminAllCourse() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          quiz_data: combinedData
+          quiz_data: combinedData,
+          task_id: currentPreviewTaskId || undefined
         })
       });
 
       if (response.ok) {
         const result = await response.json();
-        alert('Course and Quiz saved to database successfully!');
+        showAlert('Course and Quiz saved to database successfully!', 'success');
         setShowQuizPreview(false);
         setQuizPreviewData(null);
         setPreviewData(null); // Clear course preview data too
         setSelectedFile(null);
         setDocumentBase64(null);
+        setCurrentPreviewTaskId(null);
         fetchCourses(); // Refresh courses list
+        fetchBackgroundTasks(); // Refresh to show status 'Generated'
       } else {
         const errorData = await response.text();
         console.error('Failed to save quiz:', errorData);
-        alert(`Failed to save quiz: ${errorData}`);
+        showAlert(`Failed to save quiz: ${errorData}`, 'error');
       }
     } catch (error) {
       console.error('Error saving quiz:', error);
-      alert(`Error saving quiz: ${error.message}`);
+      showAlert(`Error saving quiz: ${error.message}`, 'error');
     } finally {
       setCreatingQuiz(false);
     }
@@ -1319,6 +1585,7 @@ function AdminAllCourse() {
                     setShowPreview(false);
                     setDocumentBase64(null);
                     setPreviewData(null);
+                    setCurrentPreviewTaskId(null);
                   }}
                 >
                   <span className="icon">
@@ -1720,12 +1987,52 @@ function AdminAllCourse() {
   return (
     <div className="admin-home-bg">
       <Header />
+      
+      {/* Toast Notifications */}
+      <div style={{ 
+        position: 'fixed', 
+        top: '80px', 
+        right: '20px', 
+        zIndex: 9999,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
+      }}>
+        {toasts.map(toast => (
+          <div 
+            key={toast.id} 
+            className={`notification is-${toast.type}`}
+            style={{
+              minWidth: '300px',
+              animation: 'slideIn 0.3s ease-out',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            }}
+          >
+            <button className="delete" onClick={() => removeToast(toast.id)}></button>
+            {toast.message}
+          </div>
+        ))}
+      </div>
+      
+      <style>{`
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+
       <div className="container mt-4">
         {/* Page Header */}
         <div className="box home-overview-card">
           <div className="columns is-vcentered">
             <div className="column">
-              <div className="is-size-4 has-text-weight-bold mb-2">All Courses</div>
+              <div className="is-size-4 has-text-weight-bold mb-2">Course Management</div>
               <div className="is-size-6 has-text-grey">View and manage all courses in the system</div>
             </div>
             <div className="column is-narrow">
@@ -1742,53 +2049,79 @@ function AdminAllCourse() {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="box home-courses-card">
-          <div className="columns is-vcentered">
-            <div className="column">
-              <div className="field">
-                <div className="control has-icons-left">
-                  <input
-                    className="input is-medium"
-                    type="search"
-                    placeholder="Search courses by name or description..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                  <span className="icon is-left">
-                    <i className="fas fa-search"></i>
+        {/* Main Tab Navigation */}
+        <div className="tabs is-boxed mb-4">
+          <ul>
+            <li className={activeMainTab === 'courses' ? 'is-active' : ''}>
+              <a onClick={() => setActiveMainTab('courses')}>
+                <span className="icon"><i className="fas fa-book"></i></span>
+                <span>Courses</span>
+              </a>
+            </li>
+            <li className={activeMainTab === 'process' ? 'is-active' : ''}>
+              <a onClick={() => setActiveMainTab('process')}>
+                <span className="icon"><i className="fas fa-tasks"></i></span>
+                <span>Process</span>
+                {(taskStats.pending > 0 || taskStats.generating > 0) && (
+                  <span className="tag is-warning is-rounded ml-2" style={{ minWidth: '24px' }}>
+                    {taskStats.pending + taskStats.generating}
                   </span>
+                )}
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        {/* Courses Tab Content */}
+        {activeMainTab === 'courses' && (
+          <>
+            {/* Search Bar */}
+            <div className="box home-courses-card">
+              <div className="columns is-vcentered">
+                <div className="column">
+                  <div className="field">
+                    <div className="control has-icons-left">
+                      <input
+                        className="input is-medium"
+                        type="search"
+                        placeholder="Search courses by name or description..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                      <span className="icon is-left">
+                        <i className="fas fa-search"></i>
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="column is-narrow">
-              <div className="field">
-                <div className="control">
-                  <div className="tags has-addons">
-                    <span className="tag is-light">Total Courses:</span>
-                    <span className="tag is-info">{filteredCourses.length}</span>
+                <div className="column is-narrow">
+                  <div className="field">
+                    <div className="control">
+                      <div className="tags has-addons">
+                        <span className="tag is-light">Total Courses:</span>
+                        <span className="tag is-info">{filteredCourses.length}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Courses Grid */}
-        <div className="container mt-4 mb-6">
-          {loading ? (
-            <div className="box home-courses-card has-text-centered">
-              <div className="is-size-5 has-text-grey">Loading courses...</div>
-            </div>
-          ) : (
-            <div className="box home-courses-card">
-              <div className="columns is-multiline">
-                {filteredCourses.length > 0 ? (
-                  filteredCourses.map((course) => (
-                    <div className="column is-4" key={course.course_id}>
-                      <div className="box home-course-row" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        <div className="mb-3" style={{ flex: '1' }}>
-                          <div className="is-flex is-justify-content-space-between is-align-items-center mb-2">
+            {/* Courses Grid */}
+            <div className="container mt-4 mb-6">
+              {loading ? (
+                <div className="box home-courses-card has-text-centered">
+                  <div className="is-size-5 has-text-grey">Loading courses...</div>
+                </div>
+              ) : (
+                <div className="box home-courses-card">
+                  <div className="columns is-multiline">
+                    {filteredCourses.length > 0 ? (
+                      filteredCourses.map((course) => (
+                        <div className="column is-4" key={course.course_id}>
+                          <div className="box home-course-row" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <div className="mb-3" style={{ flex: '1' }}>
+                              <div className="is-flex is-justify-content-space-between is-align-items-center mb-2">
                             <div className="is-size-6 has-text-weight-bold">{course.course_name}</div>
                             <span className={`tag ${getDifficultyColor(course.difficulty_level)}`}>{course.difficulty_level}</span>
                           </div>
@@ -1847,6 +2180,180 @@ function AdminAllCourse() {
             </div>
           )}
         </div>
+          </>
+        )}
+
+        {/* Process Tab Content */}
+        {activeMainTab === 'process' && (
+          <div className="box">
+            <div className="is-flex is-justify-content-space-between is-align-items-center mb-4">
+              <div>
+                <h2 className="title is-4 mb-1">Background Tasks</h2>
+                <p className="subtitle is-6 has-text-grey">
+                  Monitor course generation progress for all difficulty levels
+                </p>
+              </div>
+              <div className="buttons">
+                <button 
+                  className={`button is-small is-light ${loadingTasks ? 'is-loading' : ''}`} 
+                  onClick={fetchBackgroundTasks}
+                >
+                  <span className="icon"><i className="fas fa-sync-alt"></i></span>
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* Stats Summary */}
+            <div className="columns is-multiline mb-4">
+              <div className="column is-2">
+                <div className="notification is-light" style={{ padding: '1rem' }}>
+                  <p className="heading">Queued</p>
+                  <p className="title is-4">{taskStats.pending}</p>
+                </div>
+              </div>
+              <div className="column is-2">
+                <div className="notification is-warning is-light" style={{ padding: '1rem' }}>
+                  <p className="heading">Generating</p>
+                  <p className="title is-4">{taskStats.generating}</p>
+                </div>
+              </div>
+              <div className="column is-2">
+                <div className="notification is-success is-light" style={{ padding: '1rem' }}>
+                  <p className="heading">Completed</p>
+                  <p className="title is-4">{taskStats.done}</p>
+                </div>
+              </div>
+              <div className="column is-2">
+                <div className="notification is-info is-light" style={{ padding: '1rem' }}>
+                  <p className="heading">Generated</p>
+                  <p className="title is-4">{taskStats.generated}</p>
+                </div>
+              </div>
+              <div className="column is-2">
+                <div className="notification is-danger is-light" style={{ padding: '1rem' }}>
+                  <p className="heading">Failed</p>
+                  <p className="title is-4">{taskStats.error}</p>
+                </div>
+              </div>
+            </div>
+            
+            {loadingTasks && backgroundTasks.length === 0 ? (
+              <div className="has-text-centered py-6">
+                <span className="icon is-large"><i className="fas fa-spinner fa-spin fa-2x"></i></span>
+                <p className="mt-3">Loading tasks...</p>
+              </div>
+            ) : backgroundTasks.length === 0 ? (
+              <div className="notification is-light has-text-centered">
+                <span className="icon is-large has-text-grey-light">
+                  <i className="fas fa-inbox fa-3x"></i>
+                </span>
+                <p className="mt-3 is-size-5">No background tasks</p>
+                <p className="has-text-grey">Upload a document to start generating courses for all difficulty levels.</p>
+                <button 
+                  className="button is-primary mt-4"
+                  onClick={() => setShowImportModal(true)}
+                >
+                  <span className="icon"><i className="fas fa-upload"></i></span>
+                  <span>Import Document</span>
+                </button>
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="table is-fullwidth is-hoverable">
+                  <thead>
+                    <tr>
+                      <th>Document</th>
+                      <th>Difficulty</th>
+                      <th style={{ width: '200px' }}>Status</th>
+                      <th>Created</th>
+                      <th style={{ width: '180px' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {backgroundTasks.map(task => (
+                      <tr key={task.task_id}>
+                        <td>
+                          <span className="has-text-weight-medium">{task.document_name}</span>
+                        </td>
+                        <td>
+                          <span className={`tag ${getDifficultyColor(task.difficulty_level)}`}>
+                            {task.difficulty_level}
+                          </span>
+                        </td>
+                        <td>
+                          {getStatusBadge(task)}
+                        </td>
+                        <td>
+                          <span className="is-size-7">
+                            {new Date(task.created_at).toLocaleDateString()}<br/>
+                            <span className="has-text-grey">
+                              {new Date(task.created_at).toLocaleTimeString()}
+                            </span>
+                          </span>
+                        </td>
+                        <td>
+                          <div className="buttons are-small">
+                            {task.status === 'done' && (
+                              <button 
+                                className="button is-primary is-small"
+                                onClick={() => handlePreviewTask(task)}
+                              >
+                                <span className="icon"><i className="fas fa-eye"></i></span>
+                                <span>Preview</span>
+                              </button>
+                            )}
+                            {(task.status === 'done' || task.status === 'generated') && (
+                              <button 
+                                className="button is-danger is-small is-outlined"
+                                onClick={() => handleDeleteTask(task.task_id)}
+                                title="Delete task"
+                              >
+                                <span className="icon"><i className="fas fa-trash"></i></span>
+                              </button>
+                            )}
+                            {task.status === 'error' && (
+                              <>
+                                <button 
+                                  className="button is-warning is-small"
+                                  onClick={() => handleRetryTask(task.task_id)}
+                                  title={`Retry (${task.retry_count || 0}/${task.max_retries || 3})`}
+                                >
+                                  <span className="icon"><i className="fas fa-redo"></i></span>
+                                  <span>Retry</span>
+                                </button>
+                                <button 
+                                  className="button is-danger is-small is-outlined"
+                                  onClick={() => handleDeleteTask(task.task_id)}
+                                >
+                                  <span className="icon"><i className="fas fa-trash"></i></span>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            
+            {/* Help text */}
+            <div className="notification is-info is-light mt-4">
+              <div className="content is-small">
+                <p><strong>How it works:</strong></p>
+                <ul>
+                  <li>When you upload a document, <strong>3 tasks</strong> are created automatically (Casual, Regular, Intense)</li>
+                  <li>Tasks are processed in the background - you can navigate away and come back</li>
+                  <li>Click <strong>Preview</strong> on completed tasks to review and edit the generated content</li>
+                  <li>Failed tasks can be <strong>retried</strong> up to 3 times</li>
+                  <li>Tasks older than 7 days are automatically cleaned up</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Import Document Modal */}
@@ -1935,43 +2442,31 @@ function AdminAllCourse() {
               </p>
             </div>
 
-            {/* Course Configuration */}
-            <div className="field">
-              <label 
-                className="label" 
-                style={{ 
-                  color: 'var(--primary-black)', 
-                  fontWeight: '600' 
-                }}
-              >
-                Course & Quiz Difficulty Level
-              </label>
-              <div className="control">
-                <div className="select is-fullwidth">
-                  <select 
-                    value={difficulty} 
-                    onChange={(e) => setDifficulty(e.target.value)}
-                    style={{
-                      backgroundColor: 'white',
-                      borderColor: 'var(--medium-grey)',
-                      color: 'var(--primary-black)'
-                    }}
-                  >
-                    <option value="Casual">Casual - Basic concepts and fundamental understanding</option>
-                    <option value="Regular">Regular - Intermediate concepts with moderate depth</option>
-                    <option value="Intense">Intense - Advanced concepts and complex topics</option>
-                  </select>
+            {/* Difficulty Levels Info Box */}
+            <div className="notification is-info is-light">
+              <div className="content">
+                <p className="has-text-weight-bold mb-2">
+                  <span className="icon"><i className="fas fa-magic"></i></span>
+                  All 3 difficulty levels will be generated automatically:
+                </p>
+                <div className="tags are-medium">
+                  <span className="tag is-success">
+                    <span className="icon"><i className="fas fa-leaf"></i></span>
+                    <span>Casual</span>
+                  </span>
+                  <span className="tag is-warning">
+                    <span className="icon"><i className="fas fa-balance-scale"></i></span>
+                    <span>Regular</span>
+                  </span>
+                  <span className="tag is-danger">
+                    <span className="icon"><i className="fas fa-fire"></i></span>
+                    <span>Intense</span>
+                  </span>
                 </div>
+                <p className="is-size-7 mt-2 mb-0">
+                  Tasks will run in the background. Check the <strong>Process</strong> tab to monitor progress and preview completed courses.
+                </p>
               </div>
-              <p 
-                className="help" 
-                style={{ 
-                  color: 'var(--primary-black)', 
-                  fontSize: '0.875rem' 
-                }}
-              >
-                This difficulty level will be applied to both the course content and quiz questions.
-              </p>
             </div>
 
             {/* Quiz Configuration */}
@@ -2107,7 +2602,10 @@ function AdminAllCourse() {
                 color: 'white'
               }}
             >
-              {uploading ? 'Processing...' : 'Upload & Generate Course'}
+              <span className="icon">
+                <i className="fas fa-rocket"></i>
+              </span>
+              <span>{uploading ? 'Creating Tasks...' : 'Generate All Levels'}</span>
             </button>
             <button 
               className="button" 

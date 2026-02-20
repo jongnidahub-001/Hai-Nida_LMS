@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { API_BASE_URL } from '../config/api';
@@ -7,6 +8,7 @@ import './AdminHomePage.css';
 
 function AdminHomePage() {
   const { user, getAuthHeader } = useAuth();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ function AdminHomePage() {
         setShowAddUserModal(false);
         setNewUserEmail('');
         fetchUsers(); // Refresh the user list
-        alert('User added successfully! Default password: haionetime1234');
+        showAlert('User added successfully! Default password: haionetime1234', 'success');
       } else {
         setAddUserError(data.message || 'Failed to add user');
       }

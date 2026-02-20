@@ -1,0 +1,10 @@
+# Requirements for md_to_docx.py
+
+# Option 1: Using pypandoc (recommended, requires pandoc installed)
+pypandoc>=1.11
+
+# Option 2: Using markdown + python-docx (alternative method)
+python-docx>=0.8.11
+markdown>=3.4.0
+beautifulsoup4>=4.11.0
+

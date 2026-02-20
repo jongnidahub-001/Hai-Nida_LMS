@@ -64,7 +64,8 @@ class DatabaseManager:
         collections = [
             "users", "courses", "lessons", "content", 
             "enrollments", "progress", "quiz", "question", 
-            "choice", "answer", "quiz_score", "vector"
+            "choice", "answer", "quiz_score", "vector",
+            "background_tasks", "uploaded_documents"
         ]
 
 
@@ -1269,6 +1270,318 @@ class DatabaseManager:
             print(f"Error getting answer: {str(e)}")
             return None
 
+    # ==================== UPLOADED DOCUMENTS MANAGEMENT ====================
+    
+    def create_uploaded_document(self, document_id, document_name, document_base64, user_id):
+        """Store uploaded document once for multiple tasks to reference"""
+        try:
+            doc_data = {
+                "document_id": document_id,
+                "document_name": document_name,
+                "document_base64": document_base64,
+                "user_id": user_id,
+                "created_at": datetime.now().isoformat(),
+                "reference_count": 3  # Initially referenced by 3 tasks (Casual, Regular, Intense)
+            }
+            
+            self.uploaded_documents_collection.add(
+                documents=[f"Document: {document_name} User: {user_id}"],
+                metadatas=[doc_data],
+                ids=[document_id]
+            )
+            return True, document_id
+        except Exception as e:
+            return False, f"Error storing document: {str(e)}"
+    
+    def get_uploaded_document(self, document_id):
+        """Get uploaded document by ID"""
+        try:
+            results = self.uploaded_documents_collection.get(ids=[document_id])
+            if results['metadatas'] and len(results['metadatas']) > 0:
+                return results['metadatas'][0]
+            return None
+        except Exception as e:
+            print(f"Error getting uploaded document: {str(e)}")
+            return None
+    
+    def delete_uploaded_document(self, document_id):
+        """Delete uploaded document"""
+        try:
+            self.uploaded_documents_collection.delete(ids=[document_id])
+            return True, "Document deleted"
+        except Exception as e:
+            return False, f"Error deleting document: {str(e)}"
+    
+    def cleanup_old_documents(self, days_old=7):
+        """Clean up documents older than specified days with no active tasks"""
+        try:
+            from datetime import timedelta
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            
+            results = self.uploaded_documents_collection.get()
+            deleted_count = 0
+            
+            if results['metadatas']:
+                for i, metadata in enumerate(results['metadatas']):
+                    doc_id = results['ids'][i]
+                    created_at = metadata.get('created_at', '')
+                    
+                    if created_at and created_at < cutoff_date:
+                        # Check if any active tasks reference this document
+                        tasks = self.get_background_tasks_by_document(doc_id)
+                        active_tasks = [t for t in tasks if t.get('status') in ['pending', 'generating']]
+                        
+                        if not active_tasks:
+                            self.delete_uploaded_document(doc_id)
+                            deleted_count += 1
+            
+            return True, f"Cleaned up {deleted_count} old documents"
+        except Exception as e:
+            return False, f"Error cleaning up documents: {str(e)}"
+    
+    # ==================== BACKGROUND TASKS MANAGEMENT ====================
+    
+    def create_background_task(self, task_id, document_id, document_name, difficulty_level, user_id, quiz_params):
+        """Create a background task for course generation"""
+        try:
+            task_data = {
+                "task_id": task_id,
+                "document_id": document_id,
+                "document_name": document_name,
+                "difficulty_level": difficulty_level,
+                "status": "pending",  # pending, generating, done, error
+                "progress": "Queued",  # Progress message
+                "progress_percent": 0,
+                "user_id": user_id,
+                "quiz_params": json.dumps(quiz_params) if isinstance(quiz_params, dict) else quiz_params,
+                "result_data": "",
+                "error_message": "",
+                "retry_count": 0,
+                "max_retries": 3,
+                "created_at": datetime.now().isoformat(),
+                "started_at": "",
+                "completed_at": ""
+            }
+            
+            self.background_tasks_collection.add(
+                documents=[f"Task: {task_id} Difficulty: {difficulty_level} Status: pending Document: {document_name}"],
+                metadatas=[task_data],
+                ids=[task_id]
+            )
+            return True, task_id
+        except Exception as e:
+            return False, f"Error creating background task: {str(e)}"
+    
+    def update_background_task(self, task_id, status=None, result_data=None, error_message=None, progress=None, progress_percent=None, retry_count=None):
+        """Update background task status and result"""
+        try:
+            # Get existing task data first
+            existing = self.get_background_task(task_id)
+            if not existing:
+                return False, "Task not found"
+            
+            update_data = {}
+            
+            if status:
+                update_data["status"] = status
+                if status == "generating":
+                    update_data["started_at"] = datetime.now().isoformat()
+                elif status in ["done", "error", "generated"]:
+                    update_data["completed_at"] = datetime.now().isoformat()
+            
+            if progress:
+                update_data["progress"] = progress
+            
+            if progress_percent is not None:
+                update_data["progress_percent"] = progress_percent
+            
+            if result_data:
+                update_data["result_data"] = json.dumps(result_data) if isinstance(result_data, dict) else result_data
+            
+            if error_message:
+                update_data["error_message"] = error_message
+            
+            if retry_count is not None:
+                update_data["retry_count"] = retry_count
+            
+            # Merge with existing data
+            for key, value in existing.items():
+                if key not in update_data:
+                    if key in ['quiz_params', 'result_data'] and isinstance(value, (dict, list)):
+                        update_data[key] = json.dumps(value)
+                    else:
+                        update_data[key] = value
+            
+            self.background_tasks_collection.update(
+                ids=[task_id],
+                metadatas=[update_data],
+                documents=[f"Task: {task_id} Difficulty: {update_data.get('difficulty_level', '')} Status: {update_data.get('status', '')}"]
+            )
+            return True, "Task updated"
+        except Exception as e:
+            return False, f"Error updating task: {str(e)}"
+    
+    def get_background_task(self, task_id):
+        """Get a single background task by ID"""
+        try:
+            results = self.background_tasks_collection.get(ids=[task_id])
+            if results['metadatas'] and len(results['metadatas']) > 0:
+                task = results['metadatas'][0].copy()
+                # Parse JSON fields
+                if task.get('quiz_params') and isinstance(task['quiz_params'], str):
+                    try:
+                        task['quiz_params'] = json.loads(task['quiz_params'])
+                    except:
+                        pass
+                if task.get('result_data') and isinstance(task['result_data'], str) and task['result_data']:
+                    try:
+                        task['result_data'] = json.loads(task['result_data'])
+                    except:
+                        pass
+                return task
+            return None
+        except Exception as e:
+            print(f"Error getting background task: {str(e)}")
+            return None
+    
+    def get_background_tasks(self, user_id=None):
+        """Get all background tasks, optionally filtered by user"""
+        try:
+            if user_id:
+                results = self.background_tasks_collection.get(
+                    where={"user_id": user_id}
+                )
+            else:
+                results = self.background_tasks_collection.get()
+            
+            tasks = []
+            if results['metadatas']:
+                for metadata in results['metadatas']:
+                    task = metadata.copy()
+                    # Parse JSON fields
+                    if task.get('quiz_params') and isinstance(task['quiz_params'], str):
+                        try:
+                            task['quiz_params'] = json.loads(task['quiz_params'])
+                        except:
+                            pass
+                    if task.get('result_data') and isinstance(task['result_data'], str) and task['result_data']:
+                        try:
+                            task['result_data'] = json.loads(task['result_data'])
+                        except:
+                            pass
+                    tasks.append(task)
+            
+            # Sort by created_at descending
+            tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+            return tasks
+        except Exception as e:
+            print(f"Error getting background tasks: {str(e)}")
+            return []
+    
+    def get_background_tasks_by_document(self, document_id):
+        """Get all background tasks for a specific document"""
+        try:
+            results = self.background_tasks_collection.get(
+                where={"document_id": document_id}
+            )
+            
+            tasks = []
+            if results['metadatas']:
+                for metadata in results['metadatas']:
+                    task = metadata.copy()
+                    if task.get('quiz_params') and isinstance(task['quiz_params'], str):
+                        try:
+                            task['quiz_params'] = json.loads(task['quiz_params'])
+                        except:
+                            pass
+                    tasks.append(task)
+            return tasks
+        except Exception as e:
+            print(f"Error getting tasks by document: {str(e)}")
+            return []
+    
+    def get_pending_tasks(self):
+        """Get all pending tasks for processing"""
+        try:
+            results = self.background_tasks_collection.get(
+                where={"status": "pending"}
+            )
+            
+            tasks = []
+            if results['metadatas']:
+                for metadata in results['metadatas']:
+                    task = metadata.copy()
+                    if task.get('quiz_params') and isinstance(task['quiz_params'], str):
+                        try:
+                            task['quiz_params'] = json.loads(task['quiz_params'])
+                        except:
+                            pass
+                    tasks.append(task)
+            
+            # Sort by created_at ascending (oldest first)
+            tasks.sort(key=lambda x: x.get('created_at', ''))
+            return tasks
+        except Exception as e:
+            print(f"Error getting pending tasks: {str(e)}")
+            return []
+    
+    def delete_background_task(self, task_id):
+        """Delete a background task"""
+        try:
+            self.background_tasks_collection.delete(ids=[task_id])
+            return True, "Task deleted"
+        except Exception as e:
+            return False, f"Error deleting task: {str(e)}"
+    
+    def cleanup_old_tasks(self, days_old=7):
+        """Clean up completed/error tasks older than specified days"""
+        try:
+            from datetime import timedelta
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            
+            results = self.background_tasks_collection.get()
+            deleted_count = 0
+            
+            if results['metadatas']:
+                for i, metadata in enumerate(results['metadatas']):
+                    task_id = results['ids'][i]
+                    status = metadata.get('status', '')
+                    completed_at = metadata.get('completed_at', '')
+                    
+                    # Only delete completed or error tasks that are old
+                    if status in ['done', 'error'] and completed_at and completed_at < cutoff_date:
+                        self.delete_background_task(task_id)
+                        deleted_count += 1
+            
+            return True, f"Cleaned up {deleted_count} old tasks"
+        except Exception as e:
+            return False, f"Error cleaning up tasks: {str(e)}"
+    
+    def increment_retry_count(self, task_id):
+        """Increment retry count for a task and return if retries are available"""
+        try:
+            task = self.get_background_task(task_id)
+            if not task:
+                return False, "Task not found"
+            
+            current_retries = task.get('retry_count', 0)
+            max_retries = task.get('max_retries', 3)
+            
+            if current_retries >= max_retries:
+                return False, "Max retries exceeded"
+            
+            self.update_background_task(
+                task_id, 
+                status="pending", 
+                retry_count=current_retries + 1,
+                progress="Retrying...",
+                progress_percent=0,
+                error_message=""
+            )
+            return True, f"Retry {current_retries + 1}/{max_retries}"
+        except Exception as e:
+            return False, f"Error incrementing retry: {str(e)}"
+
     def initialize_quiz_data(self):
         """Initialize quizzes, questions, choices, and answers for each course"""
         print("\n4. Creating quizzes, questions, choices, and answers for each course...")
@@ -1662,5 +1975,42 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error deleting vector: {str(e)}")
             return False
+
+    def query_similar_lessons(self, query_text: str, n_results: int = 10):
+        """
+        Query vector collection for lessons semantically similar to the query text.
+        Returns list of dicts with lesson_id, course_id, and optionally lesson/course info.
+        """
+        try:
+            if not query_text or not query_text.strip():
+                return []
+            results = self.vector_collection.query(
+                query_texts=[query_text.strip()],
+                n_results=min(n_results, 20),
+                include=["metadatas", "distances"]
+            )
+            if not results or not results.get('ids') or not results['ids'][0]:
+                return []
+            ids = results['ids'][0]
+            metadatas = results.get('metadatas', [[]])[0]
+            lessons = []
+            seen = set()
+            for i, lid in enumerate(ids):
+                if lid in seen:
+                    continue
+                meta = metadatas[i] if i < len(metadatas) else {}
+                course_id = meta.get('course_id')
+                lesson_id = meta.get('lesson_id') or lid
+                if course_id and lesson_id:
+                    seen.add(lid)
+                    lessons.append({
+                        'lesson_id': lesson_id,
+                        'course_id': course_id
+                    })
+            return lessons
+        except Exception as e:
+            print(f"Error querying similar lessons: {str(e)}")
+            return []
+
 # Global database instance
 db = DatabaseManager()

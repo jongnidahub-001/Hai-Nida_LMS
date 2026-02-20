@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../components/Header';
 import { API_BASE_URL } from '../config/api';
@@ -12,11 +13,12 @@ const LessonExpander = ({ lesson, lessonContents }) => {
   const formatMarkdownContent = (content) => {
     if (!content) return '';
     
-    // Basic markdown formatting for display
+    // Basic markdown formatting for display (inline backticks -> bold to avoid grey boxes)
     return content
       .replace(/^### (.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
       .replace(/^## (.*$)/gim, '<h3 class="title is-4 mt-5 mb-3">$1</h3>')
       .replace(/^# (.*$)/gim, '<h2 class="title is-3 mt-5 mb-3">$1</h2>')
+      .replace(/`([^`]+)`/g, '<strong>$1</strong>')  // inline backticks -> bold (avoids grey code boxes)
       .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/gim, '<em>$1</em>')
       .replace(/^- (.*$)/gim, '<li>$1</li>')
@@ -160,6 +162,7 @@ const LessonExpander = ({ lesson, lessonContents }) => {
 
 function AdminCourseDetail() {
   const { user, getAuthHeader } = useAuth();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   const { courseId } = useParams();
   const [course, setCourse] = useState(null);
@@ -256,15 +259,15 @@ function AdminCourseDetail() {
 
       if (response.ok) {
         const result = await response.json();
-        alert(`Success: ${result.message}`);
+        showAlert(`Success: ${result.message}`, 'success');
         navigate('/admin/courses');
       } else {
         const error = await response.json();
-        alert(`Error: ${error.detail || 'Failed to delete course'}`);
+        showAlert(`Error: ${error.detail || 'Failed to delete course'}`, 'error');
       }
     } catch (error) {
       console.error('Error deleting course:', error);
-      alert('Error: Failed to delete course. Please try again.');
+      showAlert('Error: Failed to delete course. Please try again.', 'error');
     } finally {
       setDeleting(false);
       setShowDeleteModal(false);

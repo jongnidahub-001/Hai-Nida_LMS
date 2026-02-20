@@ -12,6 +12,7 @@ function CourseDetailPage() {
   
   const [courseData, setCourseData] = useState(null);
   const [courseContent, setCourseContent] = useState(null);
+  const [quizAttempted, setQuizAttempted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
@@ -22,6 +23,7 @@ function CourseDetailPage() {
   useEffect(() => {
     fetchCourseDetails();
     fetchCourseContent();
+    fetchQuizScore();
   }, [courseId]);
 
   const fetchCourseDetails = async () => {
@@ -48,6 +50,20 @@ function CourseDetailPage() {
       setError('Error loading course details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchQuizScore = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/quiz-score/${courseId}`, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setQuizAttempted(data.attempted === true);
+      }
+    } catch (e) {
+      console.error('Failed to fetch quiz score:', e);
     }
   };
 
@@ -365,11 +381,12 @@ function CourseDetailPage() {
                   )}
                   
                   <button 
-                    className="button is-light is-fullwidth mt-2"
-                    onClick={() => navigate(`/course/${courseId}/quiz`)}
+                    className={`button is-fullwidth mt-2 ${quizAttempted ? 'is-static assessment-taken-btn' : 'is-light'}`}
+                    onClick={() => !quizAttempted && navigate(`/course/${courseId}/quiz`)}
+                    disabled={quizAttempted}
                   >
-                    <span className="icon"><i className="fas fa-clipboard-check"></i></span>
-                    <span>Take Assessment</span>
+                    <span className="icon"><i className={`fas ${quizAttempted ? 'fa-check-circle' : 'fa-clipboard-check'}`}></i></span>
+                    <span>{quizAttempted ? 'Assessment Taken' : 'Take Assessment'}</span>
                   </button>
                 </div>
               </div>

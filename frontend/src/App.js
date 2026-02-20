@@ -1,7 +1,8 @@
 import React from 'react';
 import './App.css';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AlertProvider } from './contexts/AlertContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import FirstTimeLoginPage from './pages/FirstTimeLoginPage';
@@ -16,9 +17,36 @@ import AdminCourseDetail from './pages/AdminCourseDetail';
 import AdminAllQuiz from './pages/AdminAllQuiz';
 import AdminUserDetail from './pages/AdminUserDetail';
 
+/** Redirects "/" and "*" based on auth state and user role */
+function DefaultRedirect() {
+  const { isAuthenticated, user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="is-flex is-justify-content-center is-align-items-center" style={{ minHeight: '100vh' }}>
+        <div className="has-text-centered">
+          <div className="is-size-4">Loading...</div>
+          <progress className="progress is-primary" max="100" style={{ width: '200px' }}></progress>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Redirect based on role
+  if (user?.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+  return <Navigate to="/home" replace />;
+}
+
 function App() {
   return (
     <AuthProvider>
+      <AlertProvider>
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -115,11 +143,12 @@ function App() {
             } 
           />
 
-          {/* Default Routes */}
-          <Route path="/" element={<Navigate to="/home" replace />} />
-          <Route path="*" element={<Navigate to="/home" replace />} />
+          {/* Default Routes - redirect based on role (admin -> /admin, student -> /home) */}
+          <Route path="/" element={<DefaultRedirect />} />
+          <Route path="*" element={<DefaultRedirect />} />
         </Routes>
       </Router>
+      </AlertProvider>
     </AuthProvider>
   );
 }

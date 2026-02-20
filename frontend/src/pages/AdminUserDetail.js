@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../components/Header';
 import { API_BASE_URL } from '../config/api';
@@ -7,6 +8,7 @@ import './AdminHomePage.css';
 
 function AdminUserDetail() {
   const { user, getAuthHeader } = useAuth();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   const { userId } = useParams();
   const [userDetail, setUserDetail] = useState(null);
@@ -146,7 +148,7 @@ function AdminUserDetail() {
       setShowAnswersModal(true);
     } catch (error) {
       console.error('Error loading quiz answers:', error);
-      alert('Failed to load quiz answers. Please try again.');
+      showAlert('Failed to load quiz answers. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -204,7 +206,7 @@ function AdminUserDetail() {
               </div>
             </div>
             <button 
-              className="button is-small"
+              className="button is-small is-light"
               onClick={() => navigate('/admin')}
             >
               <span className="icon">

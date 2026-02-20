@@ -1,4 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, status
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, HTTPException, Depends, Request, status, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,25 +14,35 @@ import os
 from agent.create_course.agent_autogen import CreateCourse
 from agent.create_quiz.agent_autogen import CreateCourse as CreateQuiz
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_google_genai import ChatGoogleGenerativeAI
+from document_chunking import needs_chunking, map_reduce_compress_document, ChunkConfig
 import asyncio
 import concurrent.futures
 import uuid
 import base64
 from typing import Literal
 from uuid import uuid4
-from uuid import uuid4
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
+from contextlib import asynccontextmanager
+import threading
+import time
 #from typhoon_ocr import ocr_document
+
+# Global flag for background task processor
+background_task_processor_running = False
+background_task_thread = None
 
 app = FastAPI(title="Learning Management System API", version="1.0.0")
 
 
 # Add CORS middleware
+# In production, set CORS_ORIGINS to allowed domains (comma-separated), e.g. "https://app.example.com,https://admin.example.com"
+_cors_origins = os.environ.get("CORS_ORIGINS", "*").strip().split(",") if os.environ.get("CORS_ORIGINS") else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure properly for production
+    allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -90,6 +103,7 @@ class QuizPreviewRequest(BaseModel):
 
 class QuizCreateSubmitRequest(BaseModel):
     quiz_data: Dict[str, Any]
+    task_id: Optional[str] = None  # Optional: when provided, update background task status to 'generated' on success
 
 class QuizSubmitRequest(BaseModel):
     course_id: str
@@ -151,6 +165,15 @@ class QuestionRegenerateRequest(BaseModel):
     current_choices: str
     current_answer: str
     user_prompt: str
+
+# Background Task Request Models
+class BatchCourseUploadRequest(BaseModel):
+    DocumentBased64: str
+    document_name: str
+    quiz_params: Dict[str, Any]  # numberOfQuestions, numberOfChoices, etc.
+
+class RetryTaskRequest(BaseModel):
+    task_id: str
 
 # Authentication dependencies
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -696,6 +719,9 @@ async def preview_course_with_agent(request: CoursePreviewRequest, current_user:
         for doc in docs:
             text += doc.page_content
 
+        # Compress document if it exceeds context window (Map-Reduce chunking)
+        text = await prepare_document_for_agent(text)
+
         # Initialize the CreateCourse agent
         course_creator = CreateCourse()
 
@@ -929,12 +955,13 @@ async def submit_course_to_database(request: CourseSubmitRequest, current_user: 
         created_lessons = []
         for lesson in lessons_info:
             lesson_success, lesson_result = db.create_lesson(
-                lesson['lesson_id'],
-                lesson['course_id'],
-                lesson['lesson_title'],
-                lesson['duration_hours'],
-                lesson['lesson_order'],
-                lesson.get('what_you_will_learn', [])
+                lesson_id=lesson['lesson_id'],
+                course_id=lesson['course_id'],
+                lesson_title=lesson['lesson_title'],
+                duration_hours=lesson['duration_hours'],
+                lesson_order=lesson['lesson_order'],
+                description=lesson.get('description', ''),
+                what_you_will_learn=lesson.get('what_you_will_learn', [])
             )
 
             
@@ -995,6 +1022,9 @@ async def preview_quiz_with_agent(request: QuizPreviewRequest, current_user: str
         text = ""
         for doc in docs:
             text += doc.page_content
+
+        # Compress document if it exceeds context window (Map-Reduce chunking)
+        text = await prepare_document_for_agent(text)
 
         # Initialize the CreateQuiz agent
         quiz_creator = CreateQuiz()
@@ -1061,8 +1091,7 @@ async def submit_quiz_to_database(request: QuizCreateSubmitRequest, current_user
     """Submit generated quiz data to database (also creates course if it doesn't exist)"""
 
     try:
-
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-exp-03-07")
+        task_id_to_update = request.task_id
         quiz_data = request.quiz_data
         #print(f"Received quiz_data: {quiz_data}")
 
@@ -1132,10 +1161,11 @@ async def submit_quiz_to_database(request: QuizCreateSubmitRequest, current_user
                         detail=f"Warning: Failed to create course: {course_result}"
                     )
         
-        # Create lessons if provided
-        for lesson in lessons_info:
+        # Create lessons in parallel
+        async def create_lesson_task(lesson):
             new_lesson_id = lesson_id_mapping[lesson['lesson_id']]
-            lesson_success, lesson_result = db.create_lesson(
+            return await asyncio.to_thread(
+                db.create_lesson,
                 lesson_id=new_lesson_id,
                 course_id=new_course_id,
                 lesson_title=lesson['lesson_title'],
@@ -1143,54 +1173,48 @@ async def submit_quiz_to_database(request: QuizCreateSubmitRequest, current_user
                 lesson_order=lesson['lesson_order'],
                 description=lesson['description'],
                 what_you_will_learn=lesson.get('what_you_will_learn', [])
-            )
-            print("--------------------------------")
-            print(lesson_success,lesson_result)
-            print("--------------------------------")
-            if lesson_success:
-                lessons_created += 1
-                print(f"Lesson created with new ID: {new_lesson_id} ,Course ID: {new_course_id}")
-            else:
-                print(f"Warning: Failed to create lesson {lesson['lesson_title']}: {lesson_result}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Warning: Failed to create lesson {lesson['lesson_title']}: {lesson_result}"
-                )
-        
-        
-        # Create lesson contents if provided
-        for content in lesson_contents_info:
-            old_lesson_id = content['lesson_id']
-            new_lesson_id = lesson_id_mapping.get(old_lesson_id)
-            
-            if new_lesson_id:
-                content_success, content_result = db.create_content(
-                    lesson_id=new_lesson_id,
-                    content_order=content['content_order'],
-                    content_type=content['content_type'],
-                    content=content['content']
-                )
-                
-                #create vector for each course
-                #course_id, content_vector
-                db.add_vector(new_course_id, new_lesson_id, content['content'])
-                print(f"Vector created for lesson {new_lesson_id}")
-    
-                        
-                if content_success:
-                    contents_created += 1
+            ), new_lesson_id, lesson['lesson_title']
+
+        if lessons_info:
+            lesson_results = await asyncio.gather(*[create_lesson_task(l) for l in lessons_info])
+            for (lesson_success, lesson_result), new_lesson_id, title in lesson_results:
+                if lesson_success:
+                    lessons_created += 1
                 else:
-                    print(f"Warning: Failed to create content for lesson {new_lesson_id}: {content_result}")
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Warning: Failed to create content for lesson {new_lesson_id}: {content_result}"
+                        detail=f"Warning: Failed to create lesson {title}: {lesson_result}"
                     )
-            else:
-                print(f"Warning: Could not find lesson mapping for {old_lesson_id}")
+
+        # Create lesson contents and vectors in parallel
+        async def create_content_task(content):
+            old_lesson_id = content['lesson_id']
+            new_lesson_id = lesson_id_mapping.get(old_lesson_id)
+            if not new_lesson_id:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Warning: Could not find lesson mapping for {old_lesson_id}"
                 )
+            content_success, content_result = await asyncio.to_thread(
+                db.create_content,
+                lesson_id=new_lesson_id,
+                content_order=content['content_order'],
+                content_type=content['content_type'],
+                content=content['content']
+            )
+            await asyncio.to_thread(db.add_vector, new_course_id, new_lesson_id, content['content'])
+            return content_success, content_result, new_lesson_id
+
+        if lesson_contents_info:
+            content_results = await asyncio.gather(*[create_content_task(c) for c in lesson_contents_info])
+            for content_success, content_result, new_lesson_id in content_results:
+                if content_success:
+                    contents_created += 1
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Warning: Failed to create content for lesson {new_lesson_id}: {content_result}"
+                    )
         # Create quiz in database
         quiz_success, quiz_result = db.create_quiz(
             quiz_id=new_quiz_id,
@@ -1209,105 +1233,99 @@ async def submit_quiz_to_database(request: QuizCreateSubmitRequest, current_user
         
         print(f"Quiz created with new ID: {new_quiz_id}")
         
-        # Create questions in database
+        # Create questions in parallel
         created_questions = []
-        for question in questions_info:
+        async def create_question_task(question):
             old_question_id = question['question_id']
             new_question_id = question_id_mapping[old_question_id]
-            
-            question_success, question_result = db.create_question(
+            success, result = await asyncio.to_thread(
+                db.create_question,
                 question_id=new_question_id,
                 quiz_id=new_quiz_id,
                 question_text=question['question_text'],
                 question_type=question['question_type'],
                 points=question['points']
             )
-            
-            if question_success:
-                created_questions.append({
-                    **question,
-                    'question_id': new_question_id,
-                    'quiz_id': new_quiz_id
-                })
-                print(f"Question created with new ID: {new_question_id}")
-            else:
-                print(f"Warning: Failed to create question {question['question_text']}: {question_result}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Warning: Failed to create question {question['question_text']}: {question_result}"
-                )
-        
-        # Create choices in database
+            return success, result, question, new_question_id
+
+        if questions_info:
+            question_results = await asyncio.gather(*[create_question_task(q) for q in questions_info])
+            for success, result, question, new_question_id in question_results:
+                if success:
+                    created_questions.append({**question, 'question_id': new_question_id, 'quiz_id': new_quiz_id})
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Warning: Failed to create question {question['question_text']}: {result}"
+                    )
+
+        # Create choices in parallel
         created_choices = []
-        for choice in choices_info:
+        async def create_choice_task(choice):
             old_question_id = choice['question_id']
             new_question_id = question_id_mapping.get(old_question_id)
-            
-            if new_question_id:
-                new_choice_id = str(uuid4())
-                choice_success, choice_result = db.create_choice(
-                    choice_id=new_choice_id,
-                    question_id=new_question_id,
-                    choice_text=choice['choice_text'],
-                    is_correct=choice['is_correct']
-                )
-                
-                if choice_success:
-                    created_choices.append({
-                        **choice,
-                        'choice_id': new_choice_id,
-                        'question_id': new_question_id
-                    })
-                    print(f"Choice created with new ID: {new_choice_id}")
-                else:
-                    print(f"Warning: Failed to create choice for question {new_question_id}: {choice_result}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Warning: Failed to create choice for question {new_question_id}: {choice_result}"
-                    )
-            else:
-                print(f"Warning: Could not find question mapping for {old_question_id}")
+            if not new_question_id:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Warning: Could not find question mapping for {old_question_id}"
                 )
-        
-        # Create answers in database
+            new_choice_id = str(uuid4())
+            success, result = await asyncio.to_thread(
+                db.create_choice,
+                choice_id=new_choice_id,
+                question_id=new_question_id,
+                choice_text=choice['choice_text'],
+                is_correct=choice['is_correct']
+            )
+            return success, result, choice, new_choice_id, new_question_id
+
+        if choices_info:
+            choice_results = await asyncio.gather(*[create_choice_task(c) for c in choices_info])
+            for success, result, choice, new_choice_id, new_question_id in choice_results:
+                if success:
+                    created_choices.append({**choice, 'choice_id': new_choice_id, 'question_id': new_question_id})
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Warning: Failed to create choice for question {new_question_id}: {result}"
+                    )
+
+        # Create answers in parallel
         created_answers = []
-        for answer in answers_info:
+        async def create_answer_task(answer):
             old_question_id = answer['question_id']
             new_question_id = question_id_mapping.get(old_question_id)
-            
-            if new_question_id:
-                new_answer_id = str(uuid4())
-                answer_success, answer_result = db.create_answer(
-                    answer_id=new_answer_id,
-                    question_id=new_question_id,
-                    correct_answer=answer['answer_text']
-                )
-                
-                if answer_success:
-                    created_answers.append({
-                        **answer,
-                        'answer_id': new_answer_id,
-                        'question_id': new_question_id
-                    })
-                    print(f"Answer created with new ID: {new_answer_id}")
-                else:
-                    print(f"Warning: Failed to create answer for question {new_question_id}: {answer_result}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Warning: Failed to create answer for question {new_question_id}: {answer_result}"
-                    )
-            else:
-                print(f"Warning: Could not find question mapping for {old_question_id}")
+            if not new_question_id:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Warning: Could not find question mapping for {old_question_id}"
                 )
+            new_answer_id = str(uuid4())
+            success, result = await asyncio.to_thread(
+                db.create_answer,
+                answer_id=new_answer_id,
+                question_id=new_question_id,
+                correct_answer=answer['answer_text']
+            )
+            return success, result, answer, new_answer_id, new_question_id
+
+        if answers_info:
+            answer_results = await asyncio.gather(*[create_answer_task(a) for a in answers_info])
+            for success, result, answer, new_answer_id, new_question_id in answer_results:
+                if success:
+                    created_answers.append({**answer, 'answer_id': new_answer_id, 'question_id': new_question_id})
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Warning: Failed to create answer for question {new_question_id}: {result}"
+                    )
         
 
         
+
+        # Update background task status to 'generated' if task_id was provided (from Background Task flow)
+        if task_id_to_update:
+            db.update_background_task(task_id_to_update, status="generated")
 
         return {
             'success': True,
@@ -1419,6 +1437,105 @@ async def get_question_answer(question_id: str, current_user: str = Depends(veri
             detail=str(e)
         )
 
+async def _analyze_quiz_and_recommend(
+    quiz_id: str,
+    course_id: str,
+    answers: List[Dict[str, Any]],
+    score: int,
+    total_points: int
+) -> Dict[str, Any]:
+    """
+    Use AI to analyze quiz performance (strengths/weaknesses) and recommend lessons.
+    Returns { strengths: [], weaknesses: [], related_lessons: [{ lesson_title, course_name, lesson_id, course_id }] }
+    """
+    strengths, weaknesses, related_lessons = [], [], []
+    try:
+        questions = db.get_questions_by_quiz_id(quiz_id)
+        if not questions:
+            return {'strengths': strengths, 'weaknesses': weaknesses, 'related_lessons': related_lessons}
+        q_by_id = {str(q.get('question_id')): q for q in questions}
+        correct_items = []
+        incorrect_items = []
+        for a in answers:
+            qid = str(a.get('question_id', ''))
+            q = q_by_id.get(qid)
+            if not q:
+                continue
+            text = q.get('question_text', '') or ''
+            is_correct = a.get('result', False)
+            if is_correct:
+                correct_items.append(text)
+            else:
+                incorrect_items.append(text)
+        if not correct_items and not incorrect_items:
+            return {'strengths': strengths, 'weaknesses': weaknesses, 'related_lessons': related_lessons}
+        prompt = f"""You are an educational analyst. Analyze this quiz result and provide feedback.
+
+Quiz score: {score}/{total_points}
+
+Questions answered CORRECTLY:
+{chr(10).join('- ' + t for t in correct_items[:20]) if correct_items else '(none)'}
+
+Questions answered INCORRECTLY:
+{chr(10).join('- ' + t for t in incorrect_items[:20]) if incorrect_items else '(none)'}
+
+Respond with a JSON object only (no markdown, no explanation). Write all strengths and weaknesses in ENGLISH:
+{{
+  "strengths": ["list", "of", "2-5 short phrases in English describing topics/concepts the learner grasped well"],
+  "weaknesses": ["list", "of", "2-5 short phrases in English describing topics to improve or review"]
+}}
+
+If strengths or weaknesses lists would be empty, use [] or provide at least one item based on the questions.
+Output ONLY valid JSON, nothing else."""
+
+        gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+        if gemini_api_key:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_core.messages import HumanMessage
+            gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=gemini_api_key)
+            resp = await gemini.ainvoke([HumanMessage(content=prompt)])
+            text = resp.content if hasattr(resp, "content") else str(resp)
+            import re
+            j = re.search(r'\{[\s\S]*\}', text)
+            if j:
+                import json
+                data = json.loads(j.group())
+                strengths = data.get('strengths') or []
+                weaknesses = data.get('weaknesses') or []
+            if isinstance(strengths, str):
+                strengths = [strengths]
+            if isinstance(weaknesses, str):
+                weaknesses = [weaknesses]
+            weakness_query = ' '.join(weaknesses) if weaknesses else ' '.join(incorrect_items[:3])
+            if weakness_query.strip():
+                similar = db.query_similar_lessons(weakness_query, n_results=12)
+                seen_lessons = set()
+                for s in similar:
+                    if len(related_lessons) >= 5:
+                        break
+                    lid, cid = s.get('lesson_id'), s.get('course_id')
+                    if not lid or not cid or (lid, cid) in seen_lessons:
+                        continue
+                    seen_lessons.add((lid, cid))
+                    lesson = db.get_lesson_by_id(lid)
+                    course = db.get_course_by_id(cid) if cid else None
+                    if lesson and course:
+                        related_lessons.append({
+                            'lesson_id': lid,
+                            'course_id': cid,
+                            'lesson_title': lesson.get('lesson_title', 'Unknown'),
+                            'course_name': course.get('course_name', 'Unknown')
+                        })
+        else:
+            strengths = strengths or ['Review your correct answers to identify patterns.']
+            weaknesses = weaknesses or ['Review the course material for topics you missed.']
+    except Exception as e:
+        print(f"Quiz analysis error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+    return {'strengths': strengths, 'weaknesses': weaknesses, 'related_lessons': related_lessons}
+
+
 @app.post("/api/quiz/submit")
 async def submit_quiz(request: QuizSubmitRequest, current_user: str = Depends(verify_token)):
     try:
@@ -1464,9 +1581,18 @@ async def submit_quiz(request: QuizSubmitRequest, current_user: str = Depends(ve
                 detail=result
             )
         
+        analysis = await _analyze_quiz_and_recommend(
+            request.quiz_id,
+            request.course_id,
+            request.answers,
+            request.score,
+            request.total_points
+        )
+        
         return {
             'success': True,
-            'message': 'Quiz submitted successfully'
+            'message': 'Quiz submitted successfully',
+            'analysis': analysis
         }
     except HTTPException:
         raise
@@ -2146,7 +2272,7 @@ async def delete_course_admin(course_id: str, current_user: str = Depends(verify
             try:
                 quiz_scores = db.get_quiz_scores_by_quiz_id(quiz_id)
                 for score in quiz_scores:
-                    success, _ = db.delete_quiz_score(score['quiz_score_id'])
+                    success, _ = db.delete_quiz_score(score['score_id'])
                     if success:
                         quiz_scores_deleted += 1
             except Exception as e:
@@ -2201,6 +2327,11 @@ async def delete_course_admin(course_id: str, current_user: str = Depends(verify
         
         for lesson in lessons:
             lesson_id = lesson['lesson_id']
+            # Delete vector for this lesson
+            try:
+                db.delete_vector(course_id, lesson_id)
+            except Exception as e:
+                print(f"Warning: Error deleting vector for lesson {lesson_id}: {str(e)}")
             
             # Delete lesson contents
             try:
@@ -2240,7 +2371,7 @@ async def delete_course_admin(course_id: str, current_user: str = Depends(verify
         try:
             enrollments = db.get_enrollments_by_course_id(course_id)
             for enrollment in enrollments:
-                success, _ = db.delete_enrollment(enrollment['enrollment_id'])
+                success, _ = db.delete_enrollment(enrollment['enroll_id'])
                 if success:
                     enrollments_deleted += 1
         except Exception as e:
@@ -2263,10 +2394,7 @@ async def delete_course_admin(course_id: str, current_user: str = Depends(verify
                 detail=f"Error deleting course: {str(e)}"
             )
         
-        # 6. Delete vector for this course
-
-        db.delete_vector(course_id, course_id)
-        print(f"Vector deleted for course {course_id}")
+        # 6. Vectors deleted per-lesson in step 2 loop above
         
         return {
             'success': True,
@@ -2457,6 +2585,439 @@ async def evaluate_quiz_answer(request: QuizEvaluationRequest, current_user: str
             detail=f"Error evaluating answer: {str(e)}"
         )
 
+# ==================== DOCUMENT CHUNKING / MAP-REDUCE ====================
+
+async def prepare_document_for_agent(
+    text: str,
+    progress_callback=None,
+) -> str:
+    """
+    Prepare document text for agent. If too long, compress via Map-Reduce chunking.
+    progress_callback: optional (message: str, percent: int) for UI updates
+    """
+    if not needs_chunking(text):
+        return text
+    gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+    if not gemini_api_key:
+        return text[:80000] + "\n\n[Document truncated - set GOOGLE_API_KEY for full Map-Reduce]"
+    gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=gemini_api_key)
+
+    async def llm_invoke(prompt: str) -> str:
+        from langchain_core.messages import HumanMessage
+        res = await gemini.ainvoke([HumanMessage(content=prompt)])
+        return res.content if hasattr(res, "content") else str(res)
+
+    return await map_reduce_compress_document(
+        text, llm_invoke,
+        config=ChunkConfig(max_doc_chars=80000),
+        progress_callback=progress_callback,
+    )
+
+
+# ==================== BACKGROUND TASK ENDPOINTS ====================
+
+async def process_single_task(task_id: str):
+    """Process a single course generation task"""
+    try:
+        task = db.get_background_task(task_id)
+        if not task:
+            print(f"Task {task_id} not found")
+            return
+        
+        # Update status to generating
+        db.update_background_task(task_id, status="generating", progress="Starting generation...", progress_percent=5)
+        
+        # Get document from uploaded_documents collection
+        document = db.get_uploaded_document(task['document_id'])
+        if not document:
+            db.update_background_task(task_id, status="error", error_message="Document not found")
+            return
+        
+        # Decode and save document temporarily
+        db.update_background_task(task_id, progress="Extracting document content...", progress_percent=15)
+        _id = uuid.uuid4()
+        temp_path = f"./temp/{_id}.pdf"
+        
+        try:
+            with open(temp_path, "wb") as f:
+                f.write(base64.b64decode(document['document_base64']))
+            
+            loader = PyPDFLoader(temp_path)
+            docs = loader.lazy_load()
+            text = ""
+            for doc in docs:
+                text += doc.page_content
+            
+            # If document exceeds context window, compress via Map-Reduce chunking
+            def progress_cb(msg: str, pct: int):
+                db.update_background_task(task_id, progress=msg, progress_percent=pct)
+            text = await prepare_document_for_agent(text, progress_callback=progress_cb)
+            
+            db.update_background_task(task_id, progress="Generating course content...", progress_percent=30)
+            
+            # Generate course using AI
+            course_creator = CreateCourse()
+            result = await course_creator.create_course(text, task['difficulty_level'])
+            
+            db.update_background_task(task_id, progress="Processing AI response...", progress_percent=80)
+            
+            final_output = None
+            log = []
+            for i in result.messages:
+                if i.source == "Expert_Agent":
+                    final_output = i.content.dict()
+                    log.append({'agent': i.source, 'content': final_output})
+                else:
+                    log.append({'agent': i.source, 'content': i.content})
+            
+            if final_output:
+                output = {
+                    'success': True,
+                    'output': final_output,
+                    'log': log,
+                    'quiz_params': task.get('quiz_params', {})
+                }
+                db.update_background_task(
+                    task_id, 
+                    status="done", 
+                    result_data=output, 
+                    progress="Completed successfully!", 
+                    progress_percent=100
+                )
+                print(f"Task {task_id} completed successfully")
+            else:
+                db.update_background_task(
+                    task_id, 
+                    status="error", 
+                    error_message="No output generated from AI agent",
+                    progress="Failed - No output",
+                    progress_percent=0
+                )
+                
+        finally:
+            # Cleanup temp file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                
+    except Exception as e:
+        print(f"Error processing task {task_id}: {str(e)}")
+        db.update_background_task(
+            task_id, 
+            status="error", 
+            error_message=str(e),
+            progress=f"Error: {str(e)[:50]}...",
+            progress_percent=0
+        )
+
+# Number of parallel workers for background task processing
+MAX_PARALLEL_WORKERS = 3
+
+# Track currently processing tasks to avoid duplicate processing
+currently_processing = set()
+processing_lock = threading.Lock()
+
+def process_task_in_thread(task_id: str):
+    """Process a single task in its own thread with its own event loop"""
+    try:
+        print(f"Worker started for task: {task_id}")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(process_single_task(task_id))
+        finally:
+            loop.close()
+    finally:
+        # Remove from currently processing when done
+        with processing_lock:
+            currently_processing.discard(task_id)
+        print(f"Worker finished for task: {task_id}")
+
+def background_task_worker():
+    """Background worker that processes pending tasks with parallel execution"""
+    global background_task_processor_running
+    
+    print(f"Background task worker started with {MAX_PARALLEL_WORKERS} parallel workers")
+    
+    # Create a thread pool for parallel task processing
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_PARALLEL_WORKERS)
+    
+    while background_task_processor_running:
+        try:
+            # Get pending tasks
+            pending_tasks = db.get_pending_tasks()
+            
+            # Filter out tasks that are already being processed
+            with processing_lock:
+                available_slots = MAX_PARALLEL_WORKERS - len(currently_processing)
+                tasks_to_process = []
+                
+                for task in pending_tasks:
+                    if len(tasks_to_process) >= available_slots:
+                        break
+                    task_id = task.get('task_id')
+                    if task_id and task_id not in currently_processing:
+                        tasks_to_process.append(task_id)
+                        currently_processing.add(task_id)
+            
+            # Submit tasks to the thread pool for parallel processing
+            for task_id in tasks_to_process:
+                print(f"Submitting task to worker pool: {task_id}")
+                executor.submit(process_task_in_thread, task_id)
+            
+            if tasks_to_process:
+                print(f"Processing {len(tasks_to_process)} tasks in parallel (total active: {len(currently_processing)})")
+            
+            # Run cleanup every hour (check every 5 seconds, run hourly)
+            current_time = time.time()
+            if not hasattr(background_task_worker, 'last_cleanup'):
+                background_task_worker.last_cleanup = current_time
+            
+            if current_time - background_task_worker.last_cleanup > 3600:  # 1 hour
+                print("Running scheduled cleanup...")
+                db.cleanup_old_tasks(days_old=7)
+                db.cleanup_old_documents(days_old=7)
+                background_task_worker.last_cleanup = current_time
+            
+            # Sleep for a short time before checking again
+            time.sleep(5)
+            
+        except Exception as e:
+            print(f"Error in background worker: {str(e)}")
+            time.sleep(10)  # Wait longer on error
+    
+    # Shutdown executor gracefully
+    print("Shutting down worker pool...")
+    executor.shutdown(wait=True)
+    print("Background task worker stopped")
+
+def _ensure_admin_exists():
+    """Check if admin user exists on startup; create default admin if not"""
+    try:
+        admin_users = db.get_users_by_role("admin")
+        if admin_users and len(admin_users) > 0:
+            print("Admin user already exists")
+            return
+        # Create default admin
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@admin.com")
+        admin_username = os.environ.get("ADMIN_USERNAME", "admin")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "admin")
+        success, message = db.create_user(
+            username=admin_username,
+            email=admin_email,
+            password=admin_password,
+            full_name="System Administrator",
+            role="admin",
+            is_auth=True,
+        )
+        if success:
+            print(f"Created default admin user: {admin_email}")
+        else:
+            print(f"Failed to create admin user: {message}")
+    except Exception as e:
+        print(f"Error ensuring admin exists: {e}")
+
+
+@app.on_event("startup")
+async def start_background_worker():
+    """Start the background task worker on app startup"""
+    global background_task_processor_running, background_task_thread
+    
+    _ensure_admin_exists()
+    
+    background_task_processor_running = True
+    background_task_thread = threading.Thread(target=background_task_worker, daemon=True)
+    background_task_thread.start()
+    print("Background task processor started")
+
+@app.on_event("shutdown")
+async def stop_background_worker():
+    """Stop the background task worker on app shutdown"""
+    global background_task_processor_running
+    
+    background_task_processor_running = False
+    print("Background task processor stopped")
+
+@app.post("/api/background-tasks/batch-create")
+async def create_batch_tasks(request: BatchCourseUploadRequest, current_user: str = Depends(verify_token)):
+    """Create 3 background tasks for all difficulty levels (Casual, Regular, Intense)"""
+    try:
+        difficulty_levels = ["Casual", "Regular", "Intense"]
+        created_tasks = []
+        
+        # Store document once
+        document_id = str(uuid.uuid4())
+        doc_success, doc_result = db.create_uploaded_document(
+            document_id=document_id,
+            document_name=request.document_name,
+            document_base64=request.DocumentBased64,
+            user_id=current_user
+        )
+        
+        if not doc_success:
+            raise HTTPException(status_code=500, detail=f"Failed to store document: {doc_result}")
+        
+        # Create a task for each difficulty level
+        for difficulty in difficulty_levels:
+            task_id = str(uuid.uuid4())
+            
+            quiz_params = request.quiz_params.copy()
+            quiz_params['difficulty'] = difficulty
+            
+            success, result = db.create_background_task(
+                task_id=task_id,
+                document_id=document_id,
+                document_name=request.document_name,
+                difficulty_level=difficulty,
+                user_id=current_user,
+                quiz_params=quiz_params
+            )
+            
+            if success:
+                created_tasks.append({
+                    "task_id": task_id,
+                    "difficulty_level": difficulty,
+                    "status": "pending",
+                    "progress": "Queued",
+                    "progress_percent": 0
+                })
+            else:
+                print(f"Failed to create task for {difficulty}: {result}")
+        
+        return {
+            "success": True, 
+            "document_id": document_id,
+            "tasks": created_tasks,
+            "message": f"Created {len(created_tasks)} generation tasks"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error creating batch tasks: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/background-tasks")
+async def get_background_tasks(current_user: str = Depends(verify_token)):
+    """Get all background tasks for current user"""
+    try:
+        tasks = db.get_background_tasks(user_id=current_user)
+        return {"success": True, "tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/background-tasks/{task_id}")
+async def get_background_task(task_id: str, current_user: str = Depends(verify_token)):
+    """Get a single background task with its result"""
+    try:
+        task = db.get_background_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        # Verify ownership
+        if task.get('user_id') != current_user:
+            # Check if admin
+            user = db.get_user_by_email(current_user)
+            if not user or user.get('role') != 'admin':
+                raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Get document base64 if task is done (for preview)
+        if task.get('status') == 'done' and task.get('document_id'):
+            document = db.get_uploaded_document(task['document_id'])
+            if document:
+                task['document_base64'] = document.get('document_base64', '')
+        
+        return {"success": True, "task": task}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/background-tasks/{task_id}")
+async def delete_background_task(task_id: str, current_user: str = Depends(verify_token)):
+    """Delete a background task"""
+    try:
+        task = db.get_background_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        # Verify ownership or admin
+        if task.get('user_id') != current_user:
+            user = db.get_user_by_email(current_user)
+            if not user or user.get('role') != 'admin':
+                raise HTTPException(status_code=403, detail="Access denied")
+        
+        success, result = db.delete_background_task(task_id)
+        if success:
+            return {"success": True, "message": "Task deleted"}
+        raise HTTPException(status_code=500, detail=result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/background-tasks/{task_id}/retry")
+async def retry_background_task(task_id: str, current_user: str = Depends(verify_token)):
+    """Retry a failed background task"""
+    try:
+        task = db.get_background_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        # Verify ownership
+        if task.get('user_id') != current_user:
+            user = db.get_user_by_email(current_user)
+            if not user or user.get('role') != 'admin':
+                raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Only allow retry for failed tasks
+        if task.get('status') != 'error':
+            raise HTTPException(status_code=400, detail="Can only retry failed tasks")
+        
+        # Check retry count
+        success, message = db.increment_retry_count(task_id)
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        
+        return {"success": True, "message": message}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/background-tasks/cleanup")
+async def manual_cleanup(current_user: str = Depends(verify_admin)):
+    """Manually trigger cleanup of old tasks (admin only)"""
+    try:
+        task_success, task_message = db.cleanup_old_tasks(days_old=7)
+        doc_success, doc_message = db.cleanup_old_documents(days_old=7)
+        
+        return {
+            "success": True,
+            "tasks_cleanup": task_message,
+            "documents_cleanup": doc_message
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/background-tasks/stats/summary")
+async def get_task_stats(current_user: str = Depends(verify_token)):
+    """Get summary statistics of background tasks for current user"""
+    try:
+        tasks = db.get_background_tasks(user_id=current_user)
+        
+        stats = {
+            "total": len(tasks),
+            "pending": len([t for t in tasks if t.get('status') == 'pending']),
+            "generating": len([t for t in tasks if t.get('status') == 'generating']),
+            "done": len([t for t in tasks if t.get('status') == 'done']),
+            "generated": len([t for t in tasks if t.get('status') == 'generated']),
+            "error": len([t for t in tasks if t.get('status') == 'error'])
+        }
+        
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000, debug=True) 
+    uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
