@@ -1,15 +1,32 @@
 version: '3.8'
 
 services:
+  # Caddy - Reverse Proxy with Auto HTTPS
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+
   # Frontend Service (React Production Build)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        - REACT_APP_API_BASE_URL=http://34.87.174.205:5000 #http://34.87.174.205:5000
+        - REACT_APP_API_BASE_URL=https://hai-nida.com
     ports:
-      - "80:80"  # Serve on port 80
+      - "80"  # Serve on port 80
     depends_on:
       - backend
     networks:
@@ -22,10 +39,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "5000"
     environment:
-      - CHROMA_HOST=34.87.174.205
+      - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      - GOOGLE_API_KEY=AIzaSyCNd1tfREAZbBnhyGuusjcjz7OdexdazCY
     depends_on:
       - chromadb
     volumes:
@@ -53,4 +71,6 @@ networks:
     driver: bridge
 
 volumes:
-  chroma-data: 
+  caddy_data:
+  caddy_config:
+  chroma-data:
