@@ -65,7 +65,7 @@ class DatabaseManager:
             "users", "courses", "lessons", "content", 
             "enrollments", "progress", "quiz", "question", 
             "choice", "answer", "quiz_score", "vector",
-            "background_tasks", "uploaded_documents"
+            "background_tasks", "uploaded_documents", "user_recommendation_courses"
         ]
 
 
@@ -1698,6 +1698,38 @@ class DatabaseManager:
             return []
         except Exception as e:
             print(f"Error getting user course quiz scores: {str(e)}")
+            return []
+
+    def save_recommendation_courses(self, user_id, course_ids):
+        """Save or replace recommendation courses for a user (from quiz recommendations)"""
+        try:
+            doc_id = f"rec_{user_id}"
+            try:
+                self.user_recommendation_courses_collection.delete(ids=[doc_id])
+            except Exception:
+                pass  # Document may not exist yet
+            self.user_recommendation_courses_collection.add(
+                ids=[doc_id],
+                documents=[f"Recommendation courses for user {user_id}"],
+                metadatas=[{"user_id": user_id, "course_ids": json.dumps(list(course_ids))}]
+            )
+            return True
+        except Exception as e:
+            print(f"Error saving recommendation courses: {str(e)}")
+            return False
+
+    def get_recommendation_courses(self, user_id):
+        """Get saved recommendation course IDs for a user"""
+        try:
+            doc_id = f"rec_{user_id}"
+            results = self.user_recommendation_courses_collection.get(ids=[doc_id])
+            if results['metadatas'] and len(results['metadatas']) > 0:
+                meta = results['metadatas'][0]
+                ids_json = meta.get('course_ids', '[]')
+                return json.loads(ids_json) if isinstance(ids_json, str) else ids_json
+            return []
+        except Exception as e:
+            print(f"Error getting recommendation courses: {str(e)}")
             return []
 
     def get_users_by_role(self, role):

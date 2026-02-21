@@ -357,6 +357,48 @@ async def get_courses(current_user: str = Depends(verify_token)):
             detail=f"Error getting courses: {str(e)}"
         )
 
+@app.get("/api/recommendation-courses")
+async def get_recommendation_courses(current_user: str = Depends(verify_token)):
+    """Get user's saved recommendation courses (from quiz submit). Returns full course objects."""
+    try:
+        user = db.get_user_by_email(current_user)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        user_id = user['user_id']
+        course_ids = db.get_recommendation_courses(user_id)
+        if not course_ids:
+            return {"courses": [], "has_recommendations": False}
+        courses_with_details = []
+        seen = set()
+        for cid in course_ids:
+            if cid in seen:
+                continue
+            seen.add(cid)
+            course = db.get_course_by_id(cid)
+            if course:
+                lessons = db.get_lessons_by_course_id(cid)
+                courses_with_details.append({
+                    'course_id': course.get('course_id'),
+                    'course_name': course.get('course_name'),
+                    'description': course.get('description'),
+                    'total_hour': course.get('total_hour'),
+                    'difficulty_level': course.get('difficulty_level'),
+                    'status': course.get('status'),
+                    'create_at': course.get('create_at'),
+                    'lesson_count': len(lessons)
+                })
+        return {"courses": courses_with_details, "has_recommendations": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting recommendation courses: {str(e)}"
+        )
+
 @app.post("/api/init-db")
 async def init_database():
     """Initialize database with sample data"""
@@ -1588,6 +1630,14 @@ async def submit_quiz(request: QuizSubmitRequest, current_user: str = Depends(ve
             request.score,
             request.total_points
         )
+        
+        # Save recommendation courses for Featured Courses on home page
+        if analysis and analysis.get('related_lessons'):
+            unique_course_ids = list(dict.fromkeys(
+                str(l.get('course_id')) for l in analysis['related_lessons'] if l.get('course_id')
+            ))
+            if unique_course_ids:
+                db.save_recommendation_courses(user_id, unique_course_ids)
         
         return {
             'success': True,

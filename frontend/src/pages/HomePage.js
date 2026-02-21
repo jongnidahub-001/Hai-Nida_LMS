@@ -12,6 +12,7 @@ function HomePage() {
   const [message, setMessage] = useState('');
   const [myCourses, setMyCourses] = useState([]);
   const [allCourses, setAllCourses] = useState([]);
+  const [recommendationCourses, setRecommendationCourses] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,27 @@ function HomePage() {
       }
     } catch (error) {
       console.error('Error fetching all courses:', error);
+    }
+  }, [getAuthHeader]);
+
+  const fetchRecommendationCourses = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/recommendation-courses`, {
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendationCourses((data.courses || []).filter(c => c));
+      } else {
+        setRecommendationCourses([]);
+      }
+    } catch (error) {
+      console.error('Error fetching recommendation courses:', error);
+      setRecommendationCourses([]);
     }
   }, [getAuthHeader]);
 
@@ -129,9 +151,10 @@ function HomePage() {
     // Fetch user's enrolled courses
     fetchMyCourses();
     
-    // Fetch all courses for the slide
+    // Fetch all courses and recommendation courses for Featured Courses
     fetchAllCourses();
-  }, [getAuthHeader, fetchMyCourses, fetchAllCourses]);
+    fetchRecommendationCourses();
+  }, [getAuthHeader, fetchMyCourses, fetchAllCourses, fetchRecommendationCourses]);
 
   // Only fetch quiz statuses when myCourses changes and is loaded
   useEffect(() => {
@@ -142,22 +165,30 @@ function HomePage() {
     }
   }, [myCourses, fetchQuizStatuses]);
 
+  // Featured Courses: use recommendation from quiz if available, else all courses
+  const featuredCourses = recommendationCourses.length > 0 ? recommendationCourses : allCourses;
+
+  // Reset slide index when featured courses change (avoid out-of-bounds)
+  useEffect(() => {
+    setCurrentSlide(prev => Math.min(prev, Math.max(0, featuredCourses.length - 1)));
+  }, [featuredCourses.length]);
+
   // Auto-slide effect for featured courses
   useEffect(() => {
-    if (allCourses.length > 1) {
+    if (featuredCourses.length > 1) {
       const slideInterval = setInterval(() => {
         if (!isAnimating) {
           setIsAnimating(true);
           setTimeout(() => {
-            setCurrentSlide((prev) => (prev + 1) % allCourses.length);
+            setCurrentSlide((prev) => (prev + 1) % featuredCourses.length);
             setIsAnimating(false);
           }, 150);
         }
-              }, 7000); // Change slide every 7 seconds
+      }, 7000); // Change slide every 7 seconds
 
       return () => clearInterval(slideInterval);
     }
-  }, [allCourses.length, isAnimating]);
+  }, [featuredCourses.length, isAnimating]);
 
   const handleLogout = () => {
     logout();
@@ -213,20 +244,20 @@ function HomePage() {
   };
 
   const nextSlide = () => {
-    if (allCourses.length > 0 && !isAnimating) {
+    if (featuredCourses.length > 0 && !isAnimating) {
       setIsAnimating(true);
       setTimeout(() => {
-        setCurrentSlide((prev) => (prev + 1) % allCourses.length);
+        setCurrentSlide((prev) => (prev + 1) % featuredCourses.length);
         setIsAnimating(false);
       }, 150);
     }
   };
 
   const prevSlide = () => {
-    if (allCourses.length > 0 && !isAnimating) {
+    if (featuredCourses.length > 0 && !isAnimating) {
       setIsAnimating(true);
       setTimeout(() => {
-        setCurrentSlide((prev) => (prev - 1 + allCourses.length) % allCourses.length);
+        setCurrentSlide((prev) => (prev - 1 + featuredCourses.length) % featuredCourses.length);
         setIsAnimating(false);
       }, 150);
     }
@@ -269,8 +300,13 @@ function HomePage() {
           </div>
           <div className="column">
             <div className="box home-overview-card" style={{ backgroundColor: '#2c2c2c', border: 'none', height: '100%' }}>
-              <div className="is-size-5 has-text-weight-bold mb-2" style={{ color: '#ffdd57' }}>Featured Courses</div>
-              {allCourses.length > 0 ? (
+              <div className="is-size-5 has-text-weight-bold mb-2" style={{ color: '#ffdd57' }}>
+                Featured Courses
+                {recommendationCourses.length > 0 && (
+                  <span className="tag is-warning is-light ml-2" style={{ fontSize: '0.65rem' }}>Recommended for you</span>
+                )}
+              </div>
+              {featuredCourses.length > 0 ? (
                 <div className="course-slide-container" style={{ position: 'relative', minHeight: '200px' }}>
                   <div className="course-slide" style={{ 
                     padding: '20px', 
@@ -282,25 +318,25 @@ function HomePage() {
                   }}>
                     <div className="course-slide-content">
                       <div className="is-flex is-justify-content-space-between is-align-items-start mb-3">
-                        <h4 className="is-size-5 has-text-weight-bold has-text-white">{allCourses[currentSlide]?.course_name}</h4>
-                        <span className={`tag ${getDifficultyColor(allCourses[currentSlide]?.difficulty_level)}`}>
-                          {allCourses[currentSlide]?.difficulty_level}
+                        <h4 className="is-size-5 has-text-weight-bold has-text-white">{featuredCourses[currentSlide]?.course_name}</h4>
+                        <span className={`tag ${getDifficultyColor(featuredCourses[currentSlide]?.difficulty_level)}`}>
+                          {featuredCourses[currentSlide]?.difficulty_level}
                         </span>
                       </div>
                       
                       <p className="is-size-7 has-text-light" style={{ lineHeight: '1.4', color: '#b3b3b3' }}>
-                        {allCourses[currentSlide]?.description || 'Comprehensive course designed to enhance your skills and knowledge.'}
+                        {featuredCourses[currentSlide]?.description || 'Comprehensive course designed to enhance your skills and knowledge.'}
                       </p>
                       
                       <div className="is-flex is-justify-content-center is-align-items-center" style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}>
                         <div className="course-stats" style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}>
                           <span className="tag mr-2" style={{ backgroundColor: '#fff', color: '#000', border: 'none', boxShadow: 'none' }}>
                             <i className="fas fa-clock mr-1"></i>
-                            {allCourses[currentSlide]?.total_hour}h
+                            {featuredCourses[currentSlide]?.total_hour}h
                           </span>
                           <span className="tag" style={{ backgroundColor: '#fff', color: '#000', border: 'none', boxShadow: 'none' }}>
                             <i className="fas fa-book mr-1"></i>
-                            {allCourses[currentSlide]?.lesson_count} lessons
+                            {featuredCourses[currentSlide]?.lesson_count} lessons
                           </span>
                         </div>
                       </div>
@@ -313,7 +349,7 @@ function HomePage() {
                           border: 'none',
                           fontWeight: '500'
                         }}
-                        onClick={() => navigate(`/course/${allCourses[currentSlide]?.course_id}`)}
+                        onClick={() => navigate(`/course/${featuredCourses[currentSlide]?.course_id}`)}
                       >
                         View Course
                       </button>
@@ -361,7 +397,7 @@ function HomePage() {
                   
                   {/* Slide indicators */}
                   <div className="slide-indicators" style={{ textAlign: 'center', marginTop: '10px' }}>
-                    {allCourses.map((_, index) => (
+                    {featuredCourses.map((_, index) => (
                       <span 
                         key={index}
                         className="tag is-small mr-1"
