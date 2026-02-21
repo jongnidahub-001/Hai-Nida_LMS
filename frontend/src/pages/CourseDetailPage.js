@@ -381,12 +381,11 @@ function CourseDetailPage() {
                   )}
                   
                   <button 
-                    className={`button is-fullwidth mt-2 ${quizAttempted ? 'is-static assessment-taken-btn' : 'is-light'}`}
-                    onClick={() => !quizAttempted && navigate(`/course/${courseId}/quiz`)}
-                    disabled={quizAttempted}
+                    className={`button is-fullwidth mt-2 ${quizAttempted ? 'is-info' : 'is-light'}`}
+                    onClick={() => quizAttempted ? navigate(`/course/${courseId}/quiz-result`) : navigate(`/course/${courseId}/quiz`)}
                   >
-                    <span className="icon"><i className={`fas ${quizAttempted ? 'fa-check-circle' : 'fa-clipboard-check'}`}></i></span>
-                    <span>{quizAttempted ? 'Assessment Taken' : 'Take Assessment'}</span>
+                    <span className="icon"><i className={`fas ${quizAttempted ? 'fa-chart-bar' : 'fa-clipboard-check'}`}></i></span>
+                    <span>{quizAttempted ? 'Quiz Result' : 'Take Assessment'}</span>
                   </button>
                 </div>
               </div>

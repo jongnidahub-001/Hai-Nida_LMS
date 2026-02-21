@@ -1669,15 +1669,60 @@ class DatabaseManager:
             )
             
             if results['metadatas'] and len(results['metadatas']) > 0:
-                score = results['metadatas'][0]
-                # Parse JSON string back to list
-                if 'answers' in score:
-                    score['answers'] = json.loads(score['answers'])
+                score = self._parse_quiz_score_metadata(results['metadatas'][0])
                 return score
             return None
         except Exception as e:
             print(f"Error getting quiz score: {str(e)}")
             return None
+
+    def _parse_quiz_score_metadata(self, meta):
+        """Parse quiz score metadata (JSON strings to objects)"""
+        score = dict(meta)
+        if 'answers' in score and isinstance(score.get('answers'), str):
+            try:
+                score['answers'] = json.loads(score['answers']) if score['answers'] else []
+            except:
+                score['answers'] = []
+        if 'strengths' in score and isinstance(score.get('strengths'), str):
+            try:
+                score['strengths'] = json.loads(score['strengths']) if score['strengths'] else []
+            except:
+                score['strengths'] = []
+        if 'weaknesses' in score and isinstance(score.get('weaknesses'), str):
+            try:
+                score['weaknesses'] = json.loads(score['weaknesses']) if score['weaknesses'] else []
+            except:
+                score['weaknesses'] = []
+        if 'related_lessons' in score and isinstance(score.get('related_lessons'), str):
+            try:
+                score['related_lessons'] = json.loads(score['related_lessons']) if score['related_lessons'] else []
+            except:
+                score['related_lessons'] = []
+        return score
+
+    def update_quiz_score_analysis(self, score_id, analysis):
+        """Update quiz score record with analysis (strengths, weaknesses, related_lessons)"""
+        try:
+            results = self.quiz_score_collection.get(ids=[score_id])
+            if not results['metadatas'] or len(results['metadatas']) == 0:
+                return False
+            existing = results['metadatas'][0]
+            updated = dict(existing)
+            updated['strengths'] = json.dumps(analysis.get('strengths', []))
+            updated['weaknesses'] = json.dumps(analysis.get('weaknesses', []))
+            updated['related_lessons'] = json.dumps(analysis.get('related_lessons', []))
+            doc = results.get('documents', [[]])
+            doc_text = doc[0] if isinstance(doc[0], str) else (doc[0][0] if doc else f"Quiz Score: {score_id}")
+            self.quiz_score_collection.update(
+                ids=[score_id],
+                metadatas=[updated],
+                documents=[doc_text]
+            )
+            return True
+        except Exception as e:
+            print(f"Error updating quiz score analysis: {str(e)}")
+            return False
     
     def get_quiz_scores_by_user_course(self, user_id, course_id):
         """Get all quiz scores for a user in a specific course"""

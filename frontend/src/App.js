@@ -11,6 +11,7 @@ import AllCoursesPage from './pages/AllCoursesPage';
 import CourseDetailPage from './pages/CourseDetailPage';
 import LessonPage from './pages/LessonPage';
 import QuizPage from './pages/QuizPage';
+import QuizResultPage from './pages/QuizResultPage';
 import AdminHomePage from './pages/AdminHomePage';
 import AdminAllCourse from './pages/AdminAllCourse';
 import AdminCourseDetail from './pages/AdminCourseDetail';
@@ -140,7 +141,15 @@ function App() {
               <ProtectedRoute>
                 <QuizPage />
               </ProtectedRoute>
-            } 
+            }
+          />
+          <Route 
+            path="/course/:courseId/quiz-result" 
+            element={
+              <ProtectedRoute>
+                <QuizResultPage />
+              </ProtectedRoute>
+            }
           />
 
           {/* Default Routes - redirect based on role (admin -> /admin, student -> /home) */}

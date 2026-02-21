@@ -446,6 +446,21 @@ async def get_my_courses(current_user: str = Depends(verify_token)):
             if course:
                 progress_summary = db.get_course_progress_summary(user_id, enrollment['course_id'])
                 
+                # Include quiz status for each course (single API, no extra calls)
+                quiz_status = {'attempted': False, 'status': 'No Quiz', 'score': None, 'total_points': None}
+                quizzes = db.get_quiz_by_course_id(enrollment['course_id'])
+                if quizzes:
+                    score_record = db.get_quiz_score(user_id, enrollment['course_id'], quizzes[0]['quiz_id'])
+                    if score_record:
+                        quiz_status = {
+                            'attempted': True,
+                            'status': 'Completed',
+                            'score': score_record['score'],
+                            'total_points': score_record['total_points']
+                        }
+                    else:
+                        quiz_status = {'attempted': False, 'status': 'Not Attempted', 'score': None, 'total_points': None}
+                
                 course_data = {
                     'course_id': course['course_id'],
                     'course_name': course['course_name'],
@@ -456,7 +471,8 @@ async def get_my_courses(current_user: str = Depends(verify_token)):
                     'enrollment_status': enrollment['status'],
                     'enroll_date': enrollment['enroll_date'],
                     'complete_date': enrollment.get('complete_date'),
-                    'progress': progress_summary
+                    'progress': progress_summary,
+                    'quiz_status': quiz_status
                 }
                 courses_with_progress.append(course_data)
         
@@ -1631,6 +1647,10 @@ async def submit_quiz(request: QuizSubmitRequest, current_user: str = Depends(ve
             request.total_points
         )
         
+        # Save quiz result analysis (strengths, weaknesses, recommendations) to DB
+        if success and result and analysis:
+            db.update_quiz_score_analysis(result, analysis)
+        
         # Save recommendation courses for Featured Courses on home page
         if analysis and analysis.get('related_lessons'):
             unique_course_ids = list(dict.fromkeys(
@@ -1691,6 +1711,56 @@ async def get_quiz_score_for_course(course_id: str, current_user: str = Depends(
             "score": score_record['score'],
             "total_points": score_record['total_points'],
             "status": "Completed"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.get("/api/quiz-result/{course_id}")
+async def get_quiz_result_for_course(course_id: str, current_user: str = Depends(verify_token)):
+    """Get full quiz result including score and analysis (strengths, weaknesses, recommendations)"""
+    try:
+        user = db.get_user_by_email(current_user)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        user_id = user['user_id']
+        quizzes = db.get_quiz_by_course_id(course_id)
+        if not quizzes:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No quiz found for this course"
+            )
+        quiz_id = quizzes[0]['quiz_id']
+        score_record = db.get_quiz_score(user_id, course_id, quiz_id)
+        if not score_record:
+            return {
+                "success": True,
+                "attempted": False,
+                "score": None,
+                "total_points": None,
+                "analysis": None
+            }
+        analysis = None
+        if any(k in score_record for k in ('strengths', 'weaknesses', 'related_lessons')):
+            analysis = {
+                "strengths": score_record.get('strengths', []) or [],
+                "weaknesses": score_record.get('weaknesses', []) or [],
+                "related_lessons": score_record.get('related_lessons', []) or []
+            }
+        return {
+            "success": True,
+            "attempted": True,
+            "score": score_record['score'],
+            "total_points": score_record['total_points'],
+            "taken_at": score_record.get('taken_at'),
+            "analysis": analysis
         }
     except HTTPException:
         raise

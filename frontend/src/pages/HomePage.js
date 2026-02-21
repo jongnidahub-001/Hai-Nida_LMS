@@ -17,7 +17,6 @@ function HomePage() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
-  const [quizStatuses, setQuizStatuses] = useState([]);
 
   const fetchMyCourses = useCallback(async () => {
     try {
@@ -82,60 +81,6 @@ function HomePage() {
     }
   }, [getAuthHeader]);
 
-  // Fetch quiz status for each enrolled course
-  const fetchQuizStatuses = useCallback(async () => {
-    if (!myCourses || myCourses.length === 0) return;
-    const statuses = await Promise.all(myCourses.map(async (course) => {
-      try {
-        // Get quiz existence and status
-        const quizRes = await fetch(`${API_BASE_URL}/api/quiz/${course.course_id}`, {
-          headers: {
-            ...getAuthHeader(),
-            'Content-Type': 'application/json'
-          }
-        });
-        const quizData = await quizRes.json();
-
-        // Get quiz score
-        const scoreRes = await fetch(`${API_BASE_URL}/api/quiz-score/${course.course_id}`, {
-          headers: {
-            ...getAuthHeader(),
-            'Content-Type': 'application/json'
-          }
-        });
-        const scoreData = await scoreRes.json();
-
-        if (scoreData.success && scoreData.attempted) {
-          return {
-            courseName: course.course_name,
-            status: scoreData.status,
-            score: `${scoreData.score} / ${scoreData.total_points}`
-          };
-        } else if (quizData.success && quizData.quiz) {
-          // Quiz exists but not attempted
-          return {
-            courseName: course.course_name,
-            status: 'Not Attempted',
-            score: '-'
-          };
-        } else {
-          return {
-            courseName: course.course_name,
-            status: 'No Quiz',
-            score: '-'
-          };
-        }
-      } catch (e) {
-        return {
-          courseName: course.course_name,
-          status: 'Error',
-          score: '-'
-        };
-      }
-    }));
-    setQuizStatuses(statuses);
-  }, [myCourses, getAuthHeader]);
-
   useEffect(() => {
     // Test the protected API endpoint
     fetch(`${API_BASE_URL}/api/hello`, {
@@ -155,15 +100,6 @@ function HomePage() {
     fetchAllCourses();
     fetchRecommendationCourses();
   }, [getAuthHeader, fetchMyCourses, fetchAllCourses, fetchRecommendationCourses]);
-
-  // Only fetch quiz statuses when myCourses changes and is loaded
-  useEffect(() => {
-    if (myCourses && myCourses.length > 0) {
-      fetchQuizStatuses();
-    } else {
-      setQuizStatuses([]);
-    }
-  }, [myCourses, fetchQuizStatuses]);
 
   // Featured Courses: use recommendation from quiz if available, else all courses
   const featuredCourses = recommendationCourses.length > 0 ? recommendationCourses : allCourses;
@@ -462,19 +398,19 @@ function HomePage() {
                       <span className="icon is-medium mr-2"><i className="fas fa-book"></i></span>
                       <div>
                         <div className="is-size-7 has-text-weight-bold">{course.course_name}</div>
-                        <div className="is-size-7 has-text-grey">{course.difficulty_level.toUpperCase()}</div>
+                        <div className="is-size-7 has-text-grey">{course.difficulty_level?.toUpperCase()}</div>
                       </div>
                     </div>
                   </div>
                   <div className="column">
                     <progress 
                       className="progress is-info is-small" 
-                      value={course.progress.progress_percentage} 
+                      value={course.progress?.progress_percentage || 0} 
                       max="100" 
                       style={{ height: 6 }}
                     ></progress>
                     <div className="is-size-7 has-text-grey mt-1">
-                      {formatProgress(course.progress)} • {course.total_hour} hours total
+                      {formatProgress(course.progress || {})} • {course.total_hour} hours total
                     </div>
                   </div>
                   <div className="column is-2">
@@ -498,24 +434,56 @@ function HomePage() {
         <div className="box home-courses-card" style={{ borderRadius: '12px', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <div className="is-size-5 has-text-weight-bold mb-3">MY QUIZ STATUS</div>
           <div className="columns is-multiline">
-            {quizStatuses.length === 0 ? (
+            {!loading && myCourses.length === 0 ? (
               <div className="column is-12">
                 <div className="has-text-centered is-size-6 has-text-grey">No quiz data</div>
               </div>
+            ) : loading ? (
+              <div className="column is-12">
+                <div className="has-text-centered is-size-6 has-text-grey">Loading...</div>
+              </div>
             ) : (
-              quizStatuses.map((qs, idx) => (
-                <div className="column is-4" key={idx}>
-                  <div className="box home-course-row" style={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: '10px', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                    <div className="mb-2">
-                      <div className="is-size-6 has-text-weight-bold">{qs.courseName}</div>
+              myCourses.map((course) => {
+                const qs = course.quiz_status || {};
+                const quizAttempted = qs.attempted === true;
+                const quizScoreStr = quizAttempted && qs.score != null && qs.total_points != null 
+                  ? `${qs.score} / ${qs.total_points}` : '-';
+                const quizStatusLabel = qs.status || 'No Quiz';
+                const quizBg = quizStatusLabel === 'Completed' ? '#48c774' : (quizStatusLabel === 'Not Attempted' ? '#ffe082' : '#e0e0e0');
+                return (
+                  <div className="column is-4" key={course.course_id}>
+                    <div 
+                      className="box home-course-row" 
+                      style={{ 
+                        height: '100%', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        borderRadius: '10px', 
+                        background: '#fff', 
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                        cursor: quizAttempted ? 'pointer' : 'default',
+                        transition: 'box-shadow 0.2s ease'
+                      }}
+                      onClick={() => quizAttempted && navigate(`/course/${course.course_id}/quiz-result`)}
+                      onMouseEnter={(e) => { if (quizAttempted) e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}
+                      onMouseLeave={(e) => { if (quizAttempted) e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; }}
+                    >
+                      <div className="mb-2">
+                        <div className="is-size-6 has-text-weight-bold">{course.course_name}</div>
+                      </div>
+                      <div className="mb-2">
+                        <span className="tag is-medium" style={{ backgroundColor: quizBg, color: '#222' }}>{quizStatusLabel}</span>
+                      </div>
+                      <div className="is-size-7 has-text-grey">Score: <span className="has-text-weight-bold" style={{ color: '#222' }}>{quizScoreStr}</span></div>
+                      {quizAttempted && (
+                        <div className="mt-2 is-size-7 has-text-info">
+                          <span className="icon is-small"><i className="fas fa-chart-bar"></i></span> Click to view result
+                        </div>
+                      )}
                     </div>
-                    <div className="mb-2">
-                      <span className="tag is-medium" style={{ backgroundColor: qs.status === 'Completed' ? '#48c774' : (qs.status === 'Not Attempted' ? '#ffe082' : '#e0e0e0'), color: '#222' }}>{qs.status}</span>
-                    </div>
-                    <div className="is-size-7 has-text-grey">Score: <span className="has-text-weight-bold" style={{ color: '#222' }}>{qs.score || '-'}</span></div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
