@@ -9,7 +9,6 @@ from typing import Optional, List, Dict, Any
 import jwt
 import datetime
 from conn import db
-import initialize_data
 import os
 from agent.create_course.agent_autogen import CreateCourse
 from agent.create_quiz.agent_autogen import CreateCourse as CreateQuiz
@@ -401,24 +400,17 @@ async def get_recommendation_courses(current_user: str = Depends(verify_token)):
 
 @app.post("/api/init-db")
 async def init_database():
-    """Initialize database with sample data"""
+    """Initialize database and admin user only (no mock courses/users)"""
     try:
-        # # First, try to reset the database
-        # if os.path.exists("./chroma_db"):
-        #     import shutil
-        #     shutil.rmtree("./chroma_db")
-        
-        # Create a new database instance
         global db
         from conn import DatabaseManager
         db = DatabaseManager()
         
-        # Initialize sample data
-        initialize_data.main()
+        _ensure_admin_exists()
         
         return {
             'success': True,
-            'message': "Database initialized with sample data"
+            'message': "Database initialized with admin user"
         }
     except Exception as e:
         raise HTTPException(
