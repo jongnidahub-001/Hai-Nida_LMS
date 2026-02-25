@@ -17,6 +17,7 @@ import AdminAllCourse from './pages/AdminAllCourse';
 import AdminCourseDetail from './pages/AdminCourseDetail';
 import AdminAllQuiz from './pages/AdminAllQuiz';
 import AdminUserDetail from './pages/AdminUserDetail';
+import AdminGeminiSettings from './pages/AdminGeminiSettings';
 
 /** Redirects "/" and "*" based on auth state and user role */
 function DefaultRedirect() {
@@ -98,6 +99,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminUserDetail />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/settings" 
+            element={
+              <ProtectedRoute>
+                <AdminGeminiSettings />
               </ProtectedRoute>
             } 
           />

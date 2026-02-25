@@ -378,7 +378,9 @@ function QuizPage() {
               </div>
               
               <div className="quiz-complete-right">
-                {analysis && (analysis.strengths?.length || analysis.weaknesses?.length || analysis.related_lessons?.length) > 0 ? (
+                {analysis && (analysis.strengths?.length || analysis.weaknesses?.length || 
+                  analysis.intensive_lessons?.length || analysis.related_lessons_for_improvement?.length || 
+                  analysis.related_lessons?.length || ('intensive_lessons' in analysis)) ? (
                   <div className="quiz-analysis">
                     {analysis.strengths?.length > 0 && (
                       <div className="quiz-analysis-card quiz-analysis-strength mb-4">
@@ -406,7 +408,69 @@ function QuizPage() {
                         </ul>
                       </div>
                     )}
-                    {analysis.related_lessons?.length > 0 && (
+                    {'intensive_lessons' in analysis && (
+                      <div className="quiz-analysis-recommendations mb-4">
+                        <h4 className="title is-5 mb-3">
+                          <span className="icon has-text-warning"><i className="fas fa-layer-group"></i></span>
+                          Intensive Lessons
+                        </h4>
+                        <p className="subtitle is-6 has-text-grey mb-2">Same topic, different difficulty level</p>
+                        {analysis.intensive_lessons?.length > 0 ? (
+                          <div className="quiz-recommendation-cards">
+                            {analysis.intensive_lessons.map((l, i) => (
+                              <a
+                                key={`int-${i}`}
+                                href={`/course/${l.course_id}/lesson/${l.lesson_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="quiz-recommendation-card"
+                              >
+                                <div className="quiz-recommendation-card-body">
+                                  <div className="quiz-recommendation-number">{i + 1}</div>
+                                  <div className="quiz-recommendation-content">
+                                    <div className="quiz-recommendation-lesson">{l.lesson_title}</div>
+                                    <div className="quiz-recommendation-course">{l.course_name}</div>
+                                  </div>
+                                  <span className="icon quiz-recommendation-arrow"><i className="fas fa-chevron-right"></i></span>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="has-text-grey is-size-7">No lessons found with the same topic in other difficulty levels.</p>
+                        )}
+                      </div>
+                    )}
+                    {analysis.related_lessons_for_improvement?.length > 0 && (
+                      <div className="quiz-analysis-recommendations mb-4">
+                        <h4 className="title is-5 mb-3">
+                          <span className="icon has-text-info"><i className="fas fa-book-open"></i></span>
+                          Related Lessons for Improvement
+                        </h4>
+                        <p className="subtitle is-6 has-text-grey mb-2">Other lessons to strengthen your knowledge</p>
+                        <div className="quiz-recommendation-cards">
+                          {analysis.related_lessons_for_improvement.map((l, i) => (
+                            <a
+                              key={`rel-${i}`}
+                              href={`/course/${l.course_id}/lesson/${l.lesson_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="quiz-recommendation-card"
+                            >
+                              <div className="quiz-recommendation-card-body">
+                                <div className="quiz-recommendation-number">{i + 1}</div>
+                                <div className="quiz-recommendation-content">
+                                  <div className="quiz-recommendation-lesson">{l.lesson_title}</div>
+                                  <div className="quiz-recommendation-course">{l.course_name}</div>
+                                </div>
+                                <span className="icon quiz-recommendation-arrow"><i className="fas fa-chevron-right"></i></span>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {!analysis.intensive_lessons?.length && !analysis.related_lessons_for_improvement?.length && analysis.related_lessons?.length > 0 && (
                       <div className="quiz-analysis-recommendations">
                         <h4 className="title is-5 mb-3">
                           <span className="icon has-text-info"><i className="fas fa-book-open"></i></span>

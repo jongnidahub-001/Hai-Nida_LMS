@@ -14,10 +14,14 @@ const LessonExpander = ({ lesson, lessonContents }) => {
     if (!content) return '';
     
     // Basic markdown formatting for display (inline backticks -> bold to avoid grey boxes)
+    // Order matters: match longest headers first (###### to #)
     return content
-      .replace(/^### (.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
-      .replace(/^## (.*$)/gim, '<h3 class="title is-4 mt-5 mb-3">$1</h3>')
-      .replace(/^# (.*$)/gim, '<h2 class="title is-3 mt-5 mb-3">$1</h2>')
+      .replace(/^######\s+(.*$)/gim, '<h6 class="title is-6 mt-3 mb-2">$1</h6>')
+      .replace(/^#####\s+(.*$)/gim, '<h5 class="title is-5 mt-3 mb-2">$1</h5>')
+      .replace(/^####\s+(.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
+      .replace(/^###\s+(.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
+      .replace(/^##\s+(.*$)/gim, '<h3 class="title is-4 mt-5 mb-3">$1</h3>')
+      .replace(/^#\s+(.*$)/gim, '<h2 class="title is-3 mt-5 mb-3">$1</h2>')
       .replace(/`([^`]+)`/g, '<strong>$1</strong>')  // inline backticks -> bold (avoids grey code boxes)
       .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/gim, '<em>$1</em>')

@@ -18,6 +18,8 @@ function AdminUserDetail() {
   const [activeTab, setActiveTab] = useState('courses');
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState(null);
   const [showAnswersModal, setShowAnswersModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -97,7 +99,7 @@ function AdminUserDetail() {
         questionMap[q.question_id] = q;
       });
       
-      // Enhance answers with question text and choice text for multiple choice
+      // Enhance answers with question text, choice text, and correct answer
       const enhancedAnswers = await Promise.all(
         answers.map(async (answer) => {
           const questionData = questionMap[answer.question_id];
@@ -106,10 +108,12 @@ function AdminUserDetail() {
             answer: answer.answer,
             type: answer.type || 'Unknown',
             result: answer.result === true || answer.result === 'true', // Ensure boolean
-            question_text: questionData ? questionData.question_text : 'Question not found'
+            question_text: questionData ? questionData.question_text : 'Question not found',
+            correct_answer_text: null
           };
           
           // If it's multiple choice, fetch choices to map choice ID to choice text
+          let choices = [];
           if (enhancedAnswer.type === 'Multiple Choice') {
             try {
               const choicesResponse = await fetch(`${API_BASE_URL}/api/question/${answer.question_id}/choices`, {
@@ -121,7 +125,7 @@ function AdminUserDetail() {
               
               if (choicesResponse.ok) {
                 const choicesData = await choicesResponse.json();
-                const choices = choicesData.choices || [];
+                choices = choicesData.choices || [];
                 
                 // Find the choice that matches the user's answer
                 const selectedChoice = choices.find(choice => choice.choice_id === answer.answer);
@@ -133,6 +137,32 @@ function AdminUserDetail() {
               console.error('Error fetching choices:', error);
               enhancedAnswer.choice_text = 'Error loading choice';
             }
+          }
+          
+          // Fetch correct answer (เฉลย)
+          try {
+            const answerResponse = await fetch(`${API_BASE_URL}/api/question/${answer.question_id}/answer`, {
+              headers: {
+                ...getAuthHeader(),
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (answerResponse.ok) {
+              const answerData = await answerResponse.json();
+              const correctAnswer = answerData.answer?.correct_answer;
+              if (correctAnswer) {
+                if (enhancedAnswer.type === 'Multiple Choice') {
+                  // correct_answer is choice_id for MC - map to choice text
+                  const correctChoice = choices.find(c => c.choice_id === correctAnswer);
+                  enhancedAnswer.correct_answer_text = correctChoice ? correctChoice.choice_text : correctAnswer;
+                } else {
+                  enhancedAnswer.correct_answer_text = correctAnswer;
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching correct answer:', error);
           }
           
           return enhancedAnswer;
@@ -157,6 +187,34 @@ function AdminUserDetail() {
   const closeAnswersModal = () => {
     setShowAnswersModal(false);
     setSelectedQuizAnswers(null);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userDetail) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/user/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        showAlert(data.message || 'User deleted successfully', 'success');
+        setShowDeleteModal(false);
+        navigate('/admin');
+      } else {
+        showAlert(data.detail || data.message || 'Failed to delete user', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showAlert('Failed to delete user. Please try again.', 'error');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
   };
 
   if (loading) {
@@ -410,6 +468,67 @@ function AdminUserDetail() {
         </div>
       </div>
 
+      {/* Floating Delete User Button - only visible to admin */}
+      {user?.role === 'admin' && (
+        <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 40 }}>
+          <button
+            className="button is-danger"
+            onClick={() => setShowDeleteModal(true)}
+            disabled={deleting}
+            style={{
+              borderRadius: '25px',
+              padding: '0.5rem 1rem',
+              boxShadow: '0 2px 8px rgba(255, 56, 96, 0.3)',
+              transition: 'all 0.3s ease',
+              transform: deleting ? 'scale(0.95)' : 'scale(1)'
+            }}
+            onMouseEnter={(e) => {
+              if (!deleting) { e.target.style.transform = 'scale(1.05)'; e.target.style.boxShadow = '0 4px 12px rgba(255, 56, 96, 0.4)'; }
+            }}
+            onMouseLeave={(e) => {
+              if (!deleting) { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 2px 8px rgba(255, 56, 96, 0.3)'; }
+            }}
+          >
+            <span className="icon is-small"><i className="fas fa-trash"></i></span>
+            <span>Delete User</span>
+          </button>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      <div className={`modal ${showDeleteModal ? 'is-active' : ''}`}>
+        <div className="modal-background" onClick={() => !deleting && setShowDeleteModal(false)}></div>
+        <div className="modal-card" style={{ backgroundColor: 'white' }}>
+          <header className="modal-card-head" style={{ backgroundColor: 'white', borderBottom: '1px solid var(--medium-grey)' }}>
+            <p className="modal-card-title" style={{ color: 'var(--primary-black)', fontWeight: 'bold' }}>
+              <span className="icon is-medium has-text-danger mr-2"><i className="fas fa-exclamation-triangle"></i></span>
+              Delete User Confirmation
+            </p>
+            <button className="delete" aria-label="close" onClick={() => !deleting && setShowDeleteModal(false)} disabled={deleting}></button>
+          </header>
+          <section className="modal-card-body" style={{ backgroundColor: 'white' }}>
+            <p className="has-text-weight-semibold mb-3" style={{ color: 'var(--primary-black)' }}>
+              Are you sure you want to delete the user "{userDetail?.full_name || userDetail?.username || userDetail?.email}"?
+            </p>
+            <div className="notification is-warning is-light" style={{ backgroundColor: '#fefefe', borderLeft: '4px solid #ffdd57', border: '1px solid var(--medium-grey)' }}>
+              <p className="has-text-weight-semibold mb-2" style={{ color: 'var(--primary-black)' }}>
+                <span className="icon is-small mr-1"><i className="fas fa-exclamation-triangle"></i></span>
+                This action will permanently delete:
+              </p>
+              <ul className="ml-4" style={{ color: 'var(--primary-black)' }}>
+                <li>The user account and all associated data</li>
+                <li>All course enrollments and progress</li>
+                <li>All quiz scores and results</li>
+              </ul>
+            </div>
+          </section>
+          <footer className="modal-card-foot" style={{ backgroundColor: 'white', borderTop: '1px solid var(--medium-grey)', gap: '12px' }}>
+            <button className={`button is-danger ${deleting ? 'is-loading' : ''}`} onClick={handleDeleteUser} disabled={deleting}>Delete User</button>
+            <button className="button" onClick={() => !deleting && setShowDeleteModal(false)} disabled={deleting}>Cancel</button>
+          </footer>
+        </div>
+      </div>
+
              {/* Quiz Answers Modal */}
        {showAnswersModal && (
          <div className="modal is-active">
@@ -501,6 +620,20 @@ function AdminUserDetail() {
                          )}
                        </div>
                      </div>
+                     {answer.correct_answer_text && (
+                       <div className="mt-3">
+                         <strong>เฉลย (Correct Answer):</strong>
+                         <div className="content mt-1" style={{ 
+                           padding: '0.5rem',
+                           backgroundColor: '#e8f5e9',
+                           borderRadius: '4px',
+                           fontSize: '0.875rem',
+                           border: '1px solid #a5d6a7'
+                         }}>
+                           <span style={{ whiteSpace: 'pre-wrap' }}>{answer.correct_answer_text}</span>
+                         </div>
+                       </div>
+                     )}
                    </div>
                  ))}
                </div>

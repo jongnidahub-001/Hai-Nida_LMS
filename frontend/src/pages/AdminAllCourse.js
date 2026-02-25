@@ -68,10 +68,14 @@ const LessonExpander = ({
     if (!content) return '';
     
     // Basic markdown formatting for display (inline backticks -> bold to avoid grey boxes)
+    // Order matters: match longest headers first (###### to #)
     return content
-      .replace(/^### (.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
-      .replace(/^## (.*$)/gim, '<h3 class="title is-4 mt-5 mb-3">$1</h3>')
-      .replace(/^# (.*$)/gim, '<h2 class="title is-3 mt-5 mb-3">$1</h2>')
+      .replace(/^######\s+(.*$)/gim, '<h6 class="title is-6 mt-3 mb-2">$1</h6>')
+      .replace(/^#####\s+(.*$)/gim, '<h5 class="title is-5 mt-3 mb-2">$1</h5>')
+      .replace(/^####\s+(.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
+      .replace(/^###\s+(.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
+      .replace(/^##\s+(.*$)/gim, '<h3 class="title is-4 mt-5 mb-3">$1</h3>')
+      .replace(/^#\s+(.*$)/gim, '<h2 class="title is-3 mt-5 mb-3">$1</h2>')
       .replace(/`([^`]+)`/g, '<strong>$1</strong>')  // inline backticks -> bold (avoids grey code boxes)
       .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/gim, '<em>$1</em>')
@@ -856,6 +860,9 @@ function AdminAllCourse() {
   // Track task_id when previewing from Background Task (to update status to 'generated' on quiz submit)
   const [currentPreviewTaskId, setCurrentPreviewTaskId] = useState(null);
 
+  // Document filename for default course name (filename without ext + difficulty)
+  const [previewDocumentName, setPreviewDocumentName] = useState(null);
+
   // Background tasks state
   const [activeMainTab, setActiveMainTab] = useState('courses'); // 'courses' or 'process'
   const [backgroundTasks, setBackgroundTasks] = useState([]);
@@ -1052,6 +1059,13 @@ function AdminAllCourse() {
     });
   };
 
+  // Helper: get filename without extension for default course name
+  const getFileNameWithoutExt = (filename) => {
+    if (!filename) return 'Untitled';
+    const lastDot = filename.lastIndexOf('.');
+    return lastDot > 0 ? filename.substring(0, lastDot) : filename;
+  };
+
   const handleUploadDocument = async () => {
     if (!selectedFile) {
       showAlert('Please select a PDF file first', 'warning');
@@ -1122,7 +1136,20 @@ function AdminAllCourse() {
         const taskData = data.task;
         
         if (taskData.result_data) {
-          setPreviewData(taskData.result_data);
+          const difficultyLevel = taskData.difficulty_level || taskData.result_data.output?.course?.difficulty_level || 'Regular';
+          const defaultCourseName = `${getFileNameWithoutExt(taskData.document_name || '')} (${difficultyLevel})`;
+          const resultWithDefaultName = {
+            ...taskData.result_data,
+            output: {
+              ...taskData.result_data.output,
+              course: {
+                ...taskData.result_data.output.course,
+                course_name: defaultCourseName
+              }
+            }
+          };
+          setPreviewDocumentName(taskData.document_name);
+          setPreviewData(resultWithDefaultName);
           setCourseParams(taskData.result_data.quiz_params || taskData.quiz_params);
           setDocumentBase64(taskData.document_base64);
           setCurrentPreviewTaskId(task.task_id);
@@ -1296,6 +1323,17 @@ function AdminAllCourse() {
 
       if (response.ok) {
         const data = await response.json();
+        // Apply default course name when we have document name (from task flow)
+        if (previewDocumentName && courseParams?.difficulty) {
+          const defaultCourseName = `${getFileNameWithoutExt(previewDocumentName)} (${courseParams.difficulty})`;
+          data.output = {
+            ...data.output,
+            course: {
+              ...data.output.course,
+              course_name: defaultCourseName
+            }
+          };
+        }
         setPreviewData(data);
       } else {
         showAlert('Failed to regenerate course. Please try again.', 'error');
@@ -1306,6 +1344,21 @@ function AdminAllCourse() {
     } finally {
       setUploading(false);
     }
+  };
+
+  // Handler for updating course name in preview
+  const handleCourseNameChange = (newName) => {
+    if (!previewData) return;
+    setPreviewData({
+      ...previewData,
+      output: {
+        ...previewData.output,
+        course: {
+          ...previewData.output.course,
+          course_name: newName
+        }
+      }
+    });
   };
 
   // Handler for updating a single lesson after regeneration
@@ -1533,6 +1586,7 @@ function AdminAllCourse() {
         setShowQuizPreview(false);
         setQuizPreviewData(null);
         setPreviewData(null); // Clear course preview data too
+        setPreviewDocumentName(null);
         setSelectedFile(null);
         setDocumentBase64(null);
         setCurrentPreviewTaskId(null);
@@ -1585,6 +1639,7 @@ function AdminAllCourse() {
                     setShowPreview(false);
                     setDocumentBase64(null);
                     setPreviewData(null);
+                    setPreviewDocumentName(null);
                     setCurrentPreviewTaskId(null);
                   }}
                 >
@@ -1665,7 +1720,23 @@ function AdminAllCourse() {
               <div className="content">
                 <div className="columns">
                   <div className="column">
-                    <h3 className="title is-4">{previewData.output.course.course_name}</h3>
+                    <div className="field">
+                      <label className="label">Course Name</label>
+                      <div className="control">
+                        <input
+                          className="input is-medium"
+                          type="text"
+                          value={previewData.output.course.course_name || ''}
+                          onChange={(e) => handleCourseNameChange(e.target.value)}
+                          placeholder="Enter course name"
+                          style={{
+                            backgroundColor: 'white',
+                            borderColor: 'var(--medium-grey)',
+                            color: 'var(--primary-black)'
+                          }}
+                        />
+                      </div>
+                    </div>
                     <p className="subtitle is-6">{previewData.output.course.description}</p>
                     
                     <div className="columns is-mobile mb-4">

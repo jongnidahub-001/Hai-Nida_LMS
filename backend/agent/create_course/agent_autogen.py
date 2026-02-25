@@ -87,17 +87,20 @@ class RegeneratedLessonOutput(BaseModel):
 
 GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+from gemini_config import get_gemini_model
+
 # Shared client for simple LLM calls (stateless, safe to share)
-gemini_client = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    api_key=GEMINI_API_KEY,
-)
+def _get_gemini_client():
+    return ChatGoogleGenerativeAI(
+        model=get_gemini_model(),
+        api_key=GEMINI_API_KEY,
+    )
 
 
 def create_model_client():
     """Create a new model client instance for each request"""
     return OpenAIChatCompletionClient(
-        model="gemini-2.5-flash",
+        model=get_gemini_model(),
         model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
         api_key=GEMINI_API_KEY,
     )
@@ -483,12 +486,12 @@ class CreateCourse:
             HumanMessage(content=formatted_prompt)
         ]
         #print(formatted_prompt)
-        result = gemini_client.invoke(messages)
+        result = _get_gemini_client().invoke(messages)
         
         return result
 
     async def evaluate(self, question: str, model_answer: str, user_answer: str):
-        output_client = gemini_client.with_structured_output(Grader)
+        output_client = _get_gemini_client().with_structured_output(Grader)
 
         formatted_prompt = evaluate_prompt.format(question=question, model_answer=model_answer, user_answer=user_answer)
         messages = [
@@ -502,7 +505,7 @@ class CreateCourse:
         messages = [
             HumanMessage(content=formatted_prompt)
         ]
-        result = gemini_client.invoke(messages)
+        result = _get_gemini_client().invoke(messages)
         return result
 
     async def regenerate_lesson(
@@ -534,7 +537,7 @@ class CreateCourse:
         Returns:
             RegeneratedLessonOutput with updated lesson and contents
         """
-        output_client = gemini_client.with_structured_output(RegeneratedLessonOutput)
+        output_client = _get_gemini_client().with_structured_output(RegeneratedLessonOutput)
         
         formatted_prompt = regenerate_lesson_prompt.format(
             course_name=course_name,

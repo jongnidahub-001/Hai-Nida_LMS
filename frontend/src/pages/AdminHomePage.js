@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
 
 function AdminHomePage() {
-  const { user, getAuthHeader } = useAuth();
+  const { user: authUser, getAuthHeader } = useAuth();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
@@ -17,16 +17,19 @@ function AdminHomePage() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [addingUser, setAddingUser] = useState(false);
   const [addUserError, setAddUserError] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     // Redirect if not admin
-    if (!user || user.role !== 'admin') {
+    if (!authUser || authUser.role !== 'admin') {
       navigate('/login');
       return;
     }
 
     fetchUsers();
-  }, [user, navigate]);
+  }, [authUser, navigate]);
 
   const fetchUsers = async () => {
     try {
@@ -47,6 +50,34 @@ function AdminHomePage() {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/user/${userToDelete.user_id}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        showAlert(data.message || 'User deleted successfully', 'success');
+        setShowDeleteModal(false);
+        setUserToDelete(null);
+        fetchUsers();
+      } else {
+        showAlert(data.detail || data.message || 'Failed to delete user', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showAlert('Failed to delete user. Please try again.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -164,12 +195,27 @@ function AdminHomePage() {
                         </span>
                       </td>
                       <td>
-                        <button 
-                          className="button is-small is-info"
-                          onClick={() => navigate(`/admin/user/${user.user_id}`)}
-                        >
-                          View Details
-                        </button>
+                        <div className="buttons">
+                          <button 
+                            className="button is-small is-info"
+                            onClick={() => navigate(`/admin/user/${user.user_id}`)}
+                          >
+                            View Details
+                          </button>
+                          {authUser?.role === 'admin' && (
+                            <button 
+                              className="button is-small is-danger"
+                              onClick={(e) => { e.stopPropagation(); setUserToDelete(user); setShowDeleteModal(true); }}
+                              disabled={user.role === 'admin'}
+                              title={user.role === 'admin' ? 'Cannot delete admin users' : 'Delete user'}
+                            >
+                              <span className="icon is-small">
+                                <i className="fas fa-trash"></i>
+                              </span>
+                              <span>Delete</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -245,6 +291,50 @@ function AdminHomePage() {
                 color: 'var(--primary-black)'
               }}
             >
+              Cancel
+            </button>
+          </footer>
+        </div>
+      </div>
+
+      {/* Delete User Confirmation Modal */}
+      <div className={`modal ${showDeleteModal ? 'is-active' : ''}`}>
+        <div className="modal-background" onClick={() => !deleting && setShowDeleteModal(false)}></div>
+        <div className="modal-card" style={{ backgroundColor: 'white' }}>
+          <header className="modal-card-head" style={{ backgroundColor: 'white', borderBottom: '1px solid var(--medium-grey)' }}>
+            <p className="modal-card-title" style={{ color: 'var(--primary-black)', fontWeight: 'bold' }}>
+              <span className="icon is-medium has-text-danger mr-2">
+                <i className="fas fa-exclamation-triangle"></i>
+              </span>
+              Delete User Confirmation
+            </p>
+            <button className="delete" onClick={() => !deleting && (setShowDeleteModal(false), setUserToDelete(null))} disabled={deleting}></button>
+          </header>
+          <section className="modal-card-body" style={{ backgroundColor: 'white' }}>
+            <p className="has-text-weight-semibold mb-3" style={{ color: 'var(--primary-black)' }}>
+              Are you sure you want to delete the user "{userToDelete?.username || userToDelete?.email}"?
+            </p>
+            <div className="notification is-warning is-light" style={{ backgroundColor: '#fefefe', borderLeft: '4px solid #ffdd57', border: '1px solid var(--medium-grey)' }}>
+              <p className="has-text-weight-semibold mb-2" style={{ color: 'var(--primary-black)' }}>
+                <span className="icon is-small mr-1"><i className="fas fa-exclamation-triangle"></i></span>
+                This action will permanently delete:
+              </p>
+              <ul className="ml-4" style={{ color: 'var(--primary-black)' }}>
+                <li>The user account and all associated data</li>
+                <li>All course enrollments and progress</li>
+                <li>All quiz scores and results</li>
+              </ul>
+            </div>
+          </section>
+          <footer className="modal-card-foot" style={{ backgroundColor: 'white', borderTop: '1px solid var(--medium-grey)', gap: '12px' }}>
+            <button
+              className={`button is-danger ${deleting ? 'is-loading' : ''}`}
+              onClick={handleDeleteUser}
+              disabled={deleting}
+            >
+              Delete User
+            </button>
+            <button className="button" onClick={() => !deleting && (setShowDeleteModal(false), setUserToDelete(null))} disabled={deleting}>
               Cancel
             </button>
           </footer>

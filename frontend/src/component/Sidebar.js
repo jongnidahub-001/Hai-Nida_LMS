@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import logo from '../logo.svg';
-import dev1 from '../assets/dev1.jpg';
+import dev1 from '../assets/jong.webp';
+import dev2 from '../assets/diff.jpg';
 
 function Sidebar({ collapsed, onToggle }) {
   return (
@@ -36,18 +37,14 @@ function Sidebar({ collapsed, onToggle }) {
       </button>
       {!collapsed && (
         <div className="has-text-centered" style={{ marginTop: '2.5rem', color: '#363636 !important' }}>
-          <img src={dev1} alt="dev1" style={{ width: '100px', borderRadius: '20%' }} />
+          <img src={dev1} alt="dev1" style={{ width: '100px', height: '150px', objectFit: 'cover', borderRadius: '20%' }} />
           <div className="mt-2 mb-4">
             <div className="has-text-weight-bold is-size-6" style={{ color: '#363636 !important' }}>รศ.ดร. จงสวัสดิ์ จงวัฒน์ผล</div>
             <div className="is-size-7" style={{ color: '#4a4a4a !important' }}>คณะบริหารธุรกิจ<br />สถาบันบัณฑิตพัฒนบริหารศาสตร์</div>
           </div>
-          <img src={dev1} alt="dev2" style={{ width: '100px', borderRadius: '20%' }} />
+          <img src={dev2} alt="dev2" style={{ width: '100px', height: '150px', objectFit: 'cover', borderRadius: '20%' }} />
           <div className="mt-2 mb-4">
-            <div className="has-text-weight-bold is-size-7" style={{ color: '#363636 !important' }}>ฐณพงศ์ จันทนะสุคนธ์<br /><span className='has-text-weight-normal' style={{ color: '#4a4a4a !important' }}>Professional MBA #15<br />GenAI Developer</span></div>
-          </div>
-          <img src={dev1} alt="dev3" style={{ width: '100px', borderRadius: '20%' }} />
-          <div className="mt-2">
-            <div className="has-text-weight-bold is-size-7" style={{ color: '#363636 !important' }}>คณิกร กาญจนวงศ์<br /><span className='has-text-weight-normal' style={{ color: '#4a4a4a !important' }}>Professional MBA #15<br />UX/UI Designer</span></div>
+            <div className="has-text-weight-bold is-size-7" style={{ color: '#363636 !important' }}>โชติพงษ์ แสงขุนทด<br/><span className='has-text-weight-normal' style={{ color: '#4a4a4a !important' }}>Professional MBA #19<br />Senior AI Engineer</span></div>
           </div>
         </div>
       )}

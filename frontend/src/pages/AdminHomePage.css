@@ -84,4 +84,13 @@
 .input:focus {
   border-color: #3273dc;
   box-shadow: 0 0 0 0.125em rgba(50,115,220,.25);
+}
+
+/* Gemini Settings - ensure model/version text is readable (no black bars) */
+.gemini-version-text {
+  color: #363636 !important;
+  background-color: #f5f5f5;
+  padding: 0.2em 0.5em;
+  border-radius: 4px;
+  font-family: monospace;
 } 

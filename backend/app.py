@@ -21,6 +21,8 @@ import uuid
 import base64
 from typing import Literal
 from uuid import uuid4
+import httpx
+from gemini_config import get_gemini_model, set_gemini_model
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
@@ -128,6 +130,9 @@ class FirstTimeSetupRequest(BaseModel):
     username: str
     full_name: str
     new_password: str
+
+class UpdateGeminiVersionRequest(BaseModel):
+    model: str
 
 class ChatMessage(BaseModel):
     role: str  # 'user' or 'assistant'
@@ -1496,13 +1501,23 @@ async def _analyze_quiz_and_recommend(
 ) -> Dict[str, Any]:
     """
     Use AI to analyze quiz performance (strengths/weaknesses) and recommend lessons.
-    Returns { strengths: [], weaknesses: [], related_lessons: [{ lesson_title, course_name, lesson_id, course_id }] }
+    Returns {
+      strengths: [], weaknesses: [],
+      intensive_lessons: [{ lesson_title, course_name, lesson_id, course_id }] - same title, diff difficulty (max 3),
+      related_lessons_for_improvement: [{ ... }] - other lessons for improvement (max 3)
+    }
     """
-    strengths, weaknesses, related_lessons = [], [], []
+    strengths, weaknesses = [], []
+    intensive_lessons = []
+    related_lessons_for_improvement = []
     try:
         questions = db.get_questions_by_quiz_id(quiz_id)
         if not questions:
-            return {'strengths': strengths, 'weaknesses': weaknesses, 'related_lessons': related_lessons}
+            return {
+                'strengths': strengths, 'weaknesses': weaknesses,
+                'intensive_lessons': intensive_lessons,
+                'related_lessons_for_improvement': related_lessons_for_improvement
+            }
         q_by_id = {str(q.get('question_id')): q for q in questions}
         correct_items = []
         incorrect_items = []
@@ -1518,7 +1533,11 @@ async def _analyze_quiz_and_recommend(
             else:
                 incorrect_items.append(text)
         if not correct_items and not incorrect_items:
-            return {'strengths': strengths, 'weaknesses': weaknesses, 'related_lessons': related_lessons}
+            return {
+                'strengths': strengths, 'weaknesses': weaknesses,
+                'intensive_lessons': intensive_lessons,
+                'related_lessons_for_improvement': related_lessons_for_improvement
+            }
         prompt = f"""You are an educational analyst. Analyze this quiz result and provide feedback.
 
 Quiz score: {score}/{total_points}
@@ -1542,7 +1561,7 @@ Output ONLY valid JSON, nothing else."""
         if gemini_api_key:
             from langchain_google_genai import ChatGoogleGenerativeAI
             from langchain_core.messages import HumanMessage
-            gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=gemini_api_key)
+            gemini = ChatGoogleGenerativeAI(model=get_gemini_model(), api_key=gemini_api_key)
             resp = await gemini.ainvoke([HumanMessage(content=prompt)])
             text = resp.content if hasattr(resp, "content") else str(resp)
             import re
@@ -1556,34 +1575,45 @@ Output ONLY valid JSON, nothing else."""
                 strengths = [strengths]
             if isinstance(weaknesses, str):
                 weaknesses = [weaknesses]
-            weakness_query = ' '.join(weaknesses) if weaknesses else ' '.join(incorrect_items[:3])
-            if weakness_query.strip():
-                similar = db.query_similar_lessons(weakness_query, n_results=12)
-                seen_lessons = set()
-                for s in similar:
-                    if len(related_lessons) >= 5:
-                        break
-                    lid, cid = s.get('lesson_id'), s.get('course_id')
-                    if not lid or not cid or (lid, cid) in seen_lessons:
-                        continue
-                    seen_lessons.add((lid, cid))
-                    lesson = db.get_lesson_by_id(lid)
-                    course = db.get_course_by_id(cid) if cid else None
-                    if lesson and course:
-                        related_lessons.append({
-                            'lesson_id': lid,
-                            'course_id': cid,
-                            'lesson_title': lesson.get('lesson_title', 'Unknown'),
-                            'course_name': course.get('course_name', 'Unknown')
-                        })
         else:
             strengths = strengths or ['Review your correct answers to identify patterns.']
             weaknesses = weaknesses or ['Review the course material for topics you missed.']
+
+        # 1. Intensive Lessons: same lesson title, different course (different difficulty) - max 3
+        intensive_lessons = db.get_lessons_same_title_different_course(course_id, limit=3)
+
+        # 2. Related Lessons for Improvement: semantically similar lessons, exclude intensive - max 3
+        weakness_query = ' '.join(weaknesses) if weaknesses else ' '.join(incorrect_items[:3])
+        intensive_keys = {(l['lesson_id'], l['course_id']) for l in intensive_lessons}
+        if weakness_query.strip():
+            similar = db.query_similar_lessons(weakness_query, n_results=15)
+            for s in similar:
+                if len(related_lessons_for_improvement) >= 3:
+                    break
+                lid, cid = s.get('lesson_id'), s.get('course_id')
+                if not lid or not cid or (lid, cid) in intensive_keys:
+                    continue
+                if cid == course_id:
+                    continue
+                lesson = db.get_lesson_by_id(lid)
+                course = db.get_course_by_id(cid) if cid else None
+                if lesson and course:
+                    related_lessons_for_improvement.append({
+                        'lesson_id': lid,
+                        'course_id': cid,
+                        'lesson_title': lesson.get('lesson_title', 'Unknown'),
+                        'course_name': course.get('course_name', 'Unknown')
+                    })
     except Exception as e:
         print(f"Quiz analysis error: {str(e)}")
         import traceback
         traceback.print_exc()
-    return {'strengths': strengths, 'weaknesses': weaknesses, 'related_lessons': related_lessons}
+    return {
+        'strengths': strengths,
+        'weaknesses': weaknesses,
+        'intensive_lessons': intensive_lessons,
+        'related_lessons_for_improvement': related_lessons_for_improvement
+    }
 
 
 @app.post("/api/quiz/submit")
@@ -1644,9 +1674,10 @@ async def submit_quiz(request: QuizSubmitRequest, current_user: str = Depends(ve
             db.update_quiz_score_analysis(result, analysis)
         
         # Save recommendation courses for Featured Courses on home page
-        if analysis and analysis.get('related_lessons'):
+        all_rec_lessons = (analysis.get('intensive_lessons') or []) + (analysis.get('related_lessons_for_improvement') or [])
+        if analysis and all_rec_lessons:
             unique_course_ids = list(dict.fromkeys(
-                str(l.get('course_id')) for l in analysis['related_lessons'] if l.get('course_id')
+                str(l.get('course_id')) for l in all_rec_lessons if l.get('course_id')
             ))
             if unique_course_ids:
                 db.save_recommendation_courses(user_id, unique_course_ids)
@@ -1740,11 +1771,13 @@ async def get_quiz_result_for_course(course_id: str, current_user: str = Depends
                 "analysis": None
             }
         analysis = None
-        if any(k in score_record for k in ('strengths', 'weaknesses', 'related_lessons')):
+        if any(k in score_record for k in ('strengths', 'weaknesses', 'related_lessons', 'intensive_lessons', 'related_lessons_for_improvement')):
             analysis = {
                 "strengths": score_record.get('strengths', []) or [],
                 "weaknesses": score_record.get('weaknesses', []) or [],
-                "related_lessons": score_record.get('related_lessons', []) or []
+                "intensive_lessons": score_record.get('intensive_lessons', []) or [],
+                "related_lessons_for_improvement": score_record.get('related_lessons_for_improvement', []) or [],
+                "related_lessons": score_record.get('related_lessons', []) or []  # backward compat
             }
         return {
             "success": True,
@@ -1860,6 +1893,62 @@ async def get_all_users_admin(current_user: str = Depends(verify_admin)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+# Admin Gemini Settings
+@app.get("/api/admin/gemini/status")
+async def get_gemini_status(current_user: str = Depends(verify_admin)):
+    """Get current Gemini version and status (active/inactive). Admin only."""
+    gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+    current_model = get_gemini_model()
+    status_val = "inactive"
+    if gemini_api_key:
+        try:
+            from langchain_core.messages import HumanMessage
+            gemini = ChatGoogleGenerativeAI(model=current_model, api_key=gemini_api_key)
+            resp = await gemini.ainvoke([HumanMessage(content="Say OK")])
+            if resp and (hasattr(resp, "content") and resp.content):
+                status_val = "active"
+        except Exception:
+            status_val = "inactive"
+    return {"current_version": current_model, "status": status_val}
+
+@app.get("/api/admin/gemini/models")
+async def get_gemini_models(current_user: str = Depends(verify_admin)):
+    """List all Gemini models that support generateContent. Admin only."""
+    gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+    if not gemini_api_key:
+        return {"models": [], "error": "GOOGLE_API_KEY not configured"}
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={gemini_api_key}",
+                timeout=15.0
+            )
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        return {"models": [], "error": str(e)}
+    models = []
+    for m in data.get("models", []):
+        supported = m.get("supportedGenerationMethods") or []
+        if "generateContent" in supported:
+            name = m.get("name", "")
+            if name.startswith("models/"):
+                name = name[7:]
+            models.append(name)
+    models.sort()
+    return {"models": models}
+
+@app.put("/api/admin/gemini/version")
+async def update_gemini_version(
+    request: UpdateGeminiVersionRequest,
+    current_user: str = Depends(verify_admin)
+):
+    """Update selected Gemini model. Admin only."""
+    if not request.model or not request.model.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model is required")
+    set_gemini_model(request.model.strip())
+    return {"success": True, "current_version": get_gemini_model()}
 
 @app.get("/api/admin/courses")
 async def get_all_courses_admin(current_user: str = Depends(verify_admin)):
@@ -2231,6 +2320,39 @@ async def add_user_admin(request: AddUserRequest, current_user: str = Depends(ve
                 detail=message
             )
             
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.delete("/api/admin/user/{user_id}")
+async def delete_user_admin(user_id: str, current_user: str = Depends(verify_admin)):
+    """Delete a user and all related data (admin only)"""
+    try:
+        admin_user = db.get_user_by_email(current_user)
+        if not admin_user:
+            raise HTTPException(status_code=404, detail="Admin user not found")
+        if admin_user['user_id'] == user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete your own account"
+            )
+        target_user = db.get_user_by_id(user_id)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        success, message = db.delete_user(user_id)
+        if success:
+            return {"success": True, "message": message}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=message
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -2712,7 +2834,7 @@ async def prepare_document_for_agent(
     gemini_api_key = os.environ.get("GOOGLE_API_KEY")
     if not gemini_api_key:
         return text[:80000] + "\n\n[Document truncated - set GOOGLE_API_KEY for full Map-Reduce]"
-    gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=gemini_api_key)
+    gemini = ChatGoogleGenerativeAI(model=get_gemini_model(), api_key=gemini_api_key)
 
     async def llm_invoke(prompt: str) -> str:
         from langchain_core.messages import HumanMessage

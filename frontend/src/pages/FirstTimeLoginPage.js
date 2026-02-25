@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../App.css';
 import './LoginPage.css';
-import projectLogo from '../assets/project_logo.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
@@ -103,7 +102,7 @@ function FirstTimeLoginPage() {
             <div className="columns">
               {/* Left side: Logo and Info */}
               <div className="column is-two-fifths is-flex is-flex-direction-column is-align-items-center is-justify-content-center" style={{ borderRight: '1px solid var(--medium-grey)', backgroundColor: 'white' }}>
-                <img src={projectLogo} alt="Project Logo" style={{ width: '120px', marginBottom: '1rem' }} />
+                <img src={`${process.env.PUBLIC_URL}/project_logo.png`} alt="Project Logo" style={{ width: '120px', marginBottom: '1rem' }} />
                 <h2 className="title is-4" style={{ color: 'var(--primary-black)' }}>First Time Setup</h2>
                 <p className="subtitle is-6" style={{ color: 'var(--primary-black)', textAlign: 'center' }}>
                   Welcome! Please complete your profile setup and change your password.

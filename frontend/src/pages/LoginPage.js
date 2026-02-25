@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../App.css';
 import './LoginPage.css';
-import projectLogo from '../assets/project_logo.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -56,70 +55,87 @@ function LoginPage() {
   };
 
   return (
-    <div className="columns" style={{ minHeight: '100vh' }}>
+    <div className="columns login-page-layout" style={{ minHeight: '100vh', margin: 0 }}>
       {/* Sidebar: Developer Info */}
       <div className="column is-narrow p-0" style={{ minWidth: sidebarCollapsed ? '60px' : '260px', maxWidth: sidebarCollapsed ? '60px' : '260px', transition: 'min-width 0.2s, max-width 0.2s' }}>
         <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(c => !c)} />
       </div>
-      <div className="column is-flex is-align-items-center is-justify-content-center" style={{ background: 'var(--light-grey)' }}>
-        <div className="card" style={{ minWidth: '600px', maxWidth: '1000px', margin: 'auto', border: '1px solid var(--medium-grey)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          <div className="card-content">
-            <div className="columns">
-              {/* Left side: Logo and Info */}
-              <div className="column is-three-fifths is-flex is-flex-direction-column is-align-items-center is-justify-content-center" style={{ borderRight: '1px solid var(--medium-grey)', backgroundColor: 'white' }}>
-                <img src={projectLogo} alt="Project Logo" style={{ width: '120px', marginBottom: '1rem' }} />
-                <h2 className="title is-4" style={{ color: 'var(--primary-black)' }}>Welcome Back!</h2>
-                <p className="subtitle is-6" style={{ color: 'var(--primary-black)' }}>Please login to your account</p>
-              </div>
-              {/* Right side: Login Form */}
-              <div className="column login-form-section">
-                <form onSubmit={handleSubmit} className="login-form">
-                  <div className="field">
-                    <label className="label">Email</label>
-                    <div className="control">
-                      <input 
-                        className="input" 
-                        type="email" 
-                        value={email} 
-                        onChange={e => setEmail(e.target.value)} 
-                        required 
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                  <div className="field">
-                    <label className="label">Password</label>
-                    <div className="control">
-                      <input 
-                        className="input" 
-                        type="password" 
-                        value={password} 
-                        onChange={e => setPassword(e.target.value)} 
-                        required 
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                  {error && <p className="help is-danger">{error}</p>}
-                  <div className="field is-grouped is-grouped-right">
-                    <div className="control">
-                      <button 
-                        className={`button is-primary ${isLoading ? 'is-loading' : ''}`} 
-                        type="submit"
-                        disabled={isLoading}
-                      >
-                        {isLoading ? 'Logging in...' : 'Login'}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-                <div className="has-text-centered mt-4">
-                  <p className="is-size-7 login-demo-text">
-                    Demo credentials: admin@admin.com / admin
-                  </p>
+      {/* Main content: Left branding | Right form */}
+      <div className="column p-0 is-flex" style={{ flex: 1, minWidth: 0 }}>
+        {/* Left section: Branding (~65%) */}
+        <div className="login-left-section">
+          <div className="login-left-inner">
+            <img src={`${process.env.PUBLIC_URL}/project_logo.png`} alt="Project Logo" className="login-project-logo" />
+            <h1 className="login-main-title">Agentic AI for Personalized Training and Development: Accelerating Learning and Closing Skill Gaps</h1>
+            <p className="login-description">The NLP, LLM, and Generative AI Initiatives at NIDA Hub Natural Language Processing (NLP), Large Language Models (LLMs), and Generative AI: The NLP, LLM, and Gen AI projects and use cases to support the analysis and generation of human language for understanding and enhancement of human capabilities.</p>
+            <div className="login-logos-row">
+              <img
+                src={`${process.env.PUBLIC_URL}/project_logo.png`}
+                alt="Hi HR"
+                className="login-nida-logo"
+                style={{ width: '80px' }}
+              />
+              <img
+                src={`${process.env.PUBLIC_URL}/nida_logo.png`}
+                alt="NIDA Business School"
+                className="login-nida-logo"
+                style={{ width: '100px' }}
+              />
+            </div>
+            <p className="login-copyright">Copyright © 2026 NIDA Business School. All rights reserved.</p>
+          </div>
+        </div>
+        {/* Right section: Sign in card (~35%) */}
+        <div className="login-right-section">
+          <div className="login-form-card">
+            <h2 className="login-signin-title">Sign in</h2>
+            <form onSubmit={handleSubmit} className="login-form">
+              <div className="field">
+                <label className="label">Username</label>
+                <div className="control">
+                  <input 
+                    className="input" 
+                    type="text"
+                    autoComplete="username"
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    placeholder="Enter username"
+                    required 
+                    disabled={isLoading}
+                  />
                 </div>
               </div>
-            </div>
+              <div className="field">
+                <label className="label">Password</label>
+                <div className="control">
+                  <input 
+                    className="input" 
+                    type="password"
+                    autoComplete="current-password"
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    placeholder="•••••••"
+                    required 
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+              {error && <p className="help is-danger">{error}</p>}
+              <div className="field">
+                <div className="control has-text-centered">
+                  <button 
+                    className={`button login-signin-btn ${isLoading ? 'is-loading' : ''}`} 
+                    type="submit"
+                    disabled={isLoading}
+                  >
+                    Sign In
+                  </button>
+                </div>
+              </div>
+            </form>
+            <p className="login-demo-text is-size-7">
+              Demo: admin@admin.com / admin
+            </p>
           </div>
         </div>
       </div>

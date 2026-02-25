@@ -26,10 +26,11 @@ class Grader(BaseModel):
 
 
 GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+from gemini_config import get_gemini_model
 
 # Create an OpenAI model client.
 model_client = OpenAIChatCompletionClient(
-    model="gemini-2.5-flash",
+    model=get_gemini_model(),
     model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
     api_key=GEMINI_API_KEY,
 )

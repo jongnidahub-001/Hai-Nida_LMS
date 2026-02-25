@@ -1699,10 +1699,20 @@ class DatabaseManager:
                 score['related_lessons'] = json.loads(score['related_lessons']) if score['related_lessons'] else []
             except:
                 score['related_lessons'] = []
+        if 'intensive_lessons' in score and isinstance(score.get('intensive_lessons'), str):
+            try:
+                score['intensive_lessons'] = json.loads(score['intensive_lessons']) if score['intensive_lessons'] else []
+            except:
+                score['intensive_lessons'] = []
+        if 'related_lessons_for_improvement' in score and isinstance(score.get('related_lessons_for_improvement'), str):
+            try:
+                score['related_lessons_for_improvement'] = json.loads(score['related_lessons_for_improvement']) if score['related_lessons_for_improvement'] else []
+            except:
+                score['related_lessons_for_improvement'] = []
         return score
 
     def update_quiz_score_analysis(self, score_id, analysis):
-        """Update quiz score record with analysis (strengths, weaknesses, related_lessons)"""
+        """Update quiz score record with analysis (strengths, weaknesses, intensive_lessons, related_lessons_for_improvement)"""
         try:
             results = self.quiz_score_collection.get(ids=[score_id])
             if not results['metadatas'] or len(results['metadatas']) == 0:
@@ -1711,7 +1721,8 @@ class DatabaseManager:
             updated = dict(existing)
             updated['strengths'] = json.dumps(analysis.get('strengths', []))
             updated['weaknesses'] = json.dumps(analysis.get('weaknesses', []))
-            updated['related_lessons'] = json.dumps(analysis.get('related_lessons', []))
+            updated['intensive_lessons'] = json.dumps(analysis.get('intensive_lessons', []))
+            updated['related_lessons_for_improvement'] = json.dumps(analysis.get('related_lessons_for_improvement', []))
             doc = results.get('documents', [[]])
             doc_text = doc[0] if isinstance(doc[0], str) else (doc[0][0] if doc else f"Quiz Score: {score_id}")
             self.quiz_score_collection.update(
@@ -1989,6 +2000,78 @@ class DatabaseManager:
         except Exception as e:
             return False, f"Error deleting quiz score: {str(e)}"
     
+    def get_quiz_scores_by_user(self, user_id):
+        """Get all quiz scores for a user"""
+        try:
+            results = self.quiz_score_collection.get(
+                where={"user_id": user_id}
+            )
+            if results and results.get('ids'):
+                return list(zip(results['ids'], results.get('metadatas', [])))
+            return []
+        except Exception as e:
+            print(f"Error getting quiz scores by user: {str(e)}")
+            return []
+
+    def get_progress_by_user(self, user_id):
+        """Get all progress records for a user"""
+        try:
+            results = self.progress_collection.get(
+                where={"user_id": user_id}
+            )
+            if results and results.get('ids'):
+                return results['ids']
+            return []
+        except Exception as e:
+            print(f"Error getting progress by user: {str(e)}")
+            return []
+
+    def delete_user(self, user_id):
+        """Delete a user and all related data (enrollments, progress, quiz scores)"""
+        try:
+            user = self.get_user_by_id(user_id)
+            if not user:
+                return False, "User not found"
+
+            # 1. Delete quiz scores
+            score_records = self.get_quiz_scores_by_user(user_id)
+            for score_id, _ in score_records:
+                try:
+                    self.quiz_score_collection.delete(ids=[score_id])
+                except Exception as e:
+                    print(f"Warning: Error deleting quiz score {score_id}: {str(e)}")
+
+            # 2. Delete progress records
+            progress_ids = self.get_progress_by_user(user_id)
+            for progress_id in progress_ids:
+                try:
+                    self.progress_collection.delete(ids=[progress_id])
+                except Exception as e:
+                    print(f"Warning: Error deleting progress {progress_id}: {str(e)}")
+
+            # 3. Delete enrollments
+            enrollments = self.get_enrollments_by_user(user_id)
+            for enroll in enrollments:
+                enroll_id = enroll.get('enroll_id') if isinstance(enroll, dict) else None
+                if enroll_id:
+                    try:
+                        self.enrollments_collection.delete(ids=[enroll_id])
+                    except Exception as ex:
+                        print(f"Warning: Error deleting enrollment {enroll_id}: {str(ex)}")
+
+            # 4. Delete recommendation courses if any
+            try:
+                doc_id = f"rec_{user_id}"
+                self.user_recommendation_courses_collection.delete(ids=[doc_id])
+            except Exception:
+                pass
+
+            # 5. Delete user
+            self.users_collection.delete(ids=[user_id])
+            return True, "User deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting user: {str(e)}"
+
     def delete_enrollment(self, enrollment_id):
         """Delete an enrollment by ID"""
         try:
@@ -2052,6 +2135,110 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error deleting vector: {str(e)}")
             return False
+
+    def _normalize_title(self, t: str) -> str:
+        """Normalize lesson title for flexible matching (lowercase, collapse spaces)"""
+        if not t:
+            return ''
+        return ' '.join(str(t).lower().strip().split())
+
+    def get_lessons_same_title_different_course(self, course_id: str, limit: int = 3):
+        """
+        Find lessons with same/similar lesson_title in sibling courses (same base name, different difficulty).
+        Used for "Intensive Lessons" - same content, different difficulty level.
+        Uses: 1) exact title match, 2) normalized match, 3) lesson_order match for sibling courses.
+        Returns list of dicts with lesson_id, course_id, lesson_title, course_name.
+        """
+        try:
+            current_course = self.get_course_by_id(course_id)
+            if not current_course:
+                return []
+            our_lessons = self.get_lessons_by_course_id(course_id)
+            if not our_lessons:
+                return []
+
+            # Find sibling courses: same base name (e.g. "Data Security") but different difficulty
+            course_name = current_course.get('course_name', '')
+            base_name = course_name
+            for suffix in [' (Casual)', ' (Regular)', ' (Intense)']:
+                if course_name.endswith(suffix):
+                    base_name = course_name[:-len(suffix)].strip()
+                    break
+
+            all_courses = self.get_all_courses()
+            sibling_course_ids = [
+                c['course_id'] for c in all_courses
+                if c.get('course_id') != course_id
+                and (c.get('course_name', '') == course_name or
+                     c.get('course_name', '').startswith(base_name + ' ('))
+            ]
+
+            if not sibling_course_ids:
+                # Fallback: try exact title match in any other course
+                sibling_course_ids = [c['course_id'] for c in all_courses if c.get('course_id') != course_id]
+
+            if not sibling_course_ids:
+                return []
+
+            # Get all lessons from sibling courses
+            sibling_lessons = []
+            for sid in sibling_course_ids:
+                sibling_lessons.extend(self.get_lessons_by_course_id(sid) or [])
+
+            our_by_normalized = {self._normalize_title(l.get('lesson_title', '')): l for l in our_lessons}
+            our_by_order = {l.get('lesson_order'): l for l in our_lessons if l.get('lesson_order') is not None}
+
+            found = []
+            seen = set()
+
+            def add_if_new(lesson, course_obj):
+                lid = lesson.get('lesson_id')
+                cid = lesson.get('course_id')
+                if not lid or not cid or (lid, cid) in seen:
+                    return
+                seen.add((lid, cid))
+                found.append({
+                    'lesson_id': lid,
+                    'course_id': cid,
+                    'lesson_title': lesson.get('lesson_title', 'Unknown'),
+                    'course_name': course_obj.get('course_name', 'Unknown')
+                })
+
+            for sl in sibling_lessons:
+                if len(found) >= limit:
+                    break
+                cid = sl.get('course_id')
+                course_obj = self.get_course_by_id(cid) if cid else None
+                if not course_obj:
+                    continue
+
+                norm_title = self._normalize_title(sl.get('lesson_title', ''))
+                if not norm_title:
+                    continue
+
+                # Match 1: exact normalized title
+                if norm_title in our_by_normalized:
+                    add_if_new(sl, course_obj)
+                    continue
+
+                # Match 2: same lesson_order (structure preserved across difficulties)
+                lo = sl.get('lesson_order')
+                if lo is not None and lo in our_by_order:
+                    add_if_new(sl, course_obj)
+                    continue
+
+                # Match 3: one title contains the other (e.g. "Introduction" vs "Introduction to Security")
+                for our_norm, our_lesson in our_by_normalized.items():
+                    if our_norm and (norm_title in our_norm or our_norm in norm_title):
+                        add_if_new(sl, course_obj)
+                        break
+
+            return found
+        except Exception as e:
+            print(f"Error in get_lessons_same_title_different_course: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return []
 
     def query_similar_lessons(self, query_text: str, n_results: int = 10):
         """

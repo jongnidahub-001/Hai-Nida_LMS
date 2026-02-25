@@ -78,19 +78,24 @@ class RegeneratedQuestionOutput(BaseModel):
 
 
 GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+from gemini_config import get_gemini_model
 
 # Create an OpenAI model client.
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.5-flash",
-    model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
-    api_key=GEMINI_API_KEY,
-)
+def _create_model_client():
+    return OpenAIChatCompletionClient(
+        model=get_gemini_model(),
+        model_info=ModelInfo(vision=True, function_calling=True, json_output=True, family="unknown", structured_output=True),
+        api_key=GEMINI_API_KEY,
+    )
 
-# Create Gemini client for question regeneration
-gemini_client = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    api_key=GEMINI_API_KEY,
-)
+def _get_gemini_client():
+    return ChatGoogleGenerativeAI(
+        model=get_gemini_model(),
+        api_key=GEMINI_API_KEY,
+    )
+
+# Module-level clients - use get_gemini_model() so config changes take effect on next request
+model_client = _create_model_client()
 
 primary_agent_prompt = """
 
@@ -325,7 +330,7 @@ class CreateCourse:
         Returns:
             RegeneratedQuestionOutput with updated question, choices, and answers
         """
-        output_client = gemini_client.with_structured_output(RegeneratedQuestionOutput)
+        output_client = _get_gemini_client().with_structured_output(RegeneratedQuestionOutput)
         
         formatted_prompt = regenerate_question_prompt.format(
             document_content=document_content,
