@@ -511,7 +511,7 @@ const LogCard = ({ logEntry, index }) => {
               padding: '1rem',
               maxHeight: isExpanded ? 'none' : '300px',
               overflowY: isExpanded ? 'visible' : 'auto',
-              fontFamily: 'monospace'
+              fontFamily: "'Montserrat', sans-serif"
             }}
           >
             <pre 

@@ -2,8 +2,13 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+/**
+ * @param {Object} props
+ * @param {React.ReactNode} props.children
+ * @param {boolean} [props.requireFullAuth] - If true, redirects first-time users (is_auth=false) to /first-time-setup
+ */
+const ProtectedRoute = ({ children, requireFullAuth = false }) => {
+  const { isAuthenticated, user, loading } = useAuth();
 
   if (loading) {
     // Show loading spinner while checking authentication
@@ -17,7 +22,16 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // First-time users must complete setup before accessing these routes
+  if (requireFullAuth && user && !user.is_auth) {
+    return <Navigate to="/first-time-setup" replace />;
+  }
+
+  return children;
 };
 
 export default ProtectedRoute; 

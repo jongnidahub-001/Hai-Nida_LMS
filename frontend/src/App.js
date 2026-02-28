@@ -38,9 +38,13 @@ function DefaultRedirect() {
     return <Navigate to="/login" replace />;
   }
 
-  // Redirect based on role
+  // Redirect based on role and first-time setup status
   if (user?.role === 'admin') {
     return <Navigate to="/admin" replace />;
+  }
+  // First-time users must complete setup before accessing dashboard
+  if (user && !user.is_auth) {
+    return <Navigate to="/first-time-setup" replace />;
   }
   return <Navigate to="/home" replace />;
 }
@@ -111,19 +115,19 @@ function App() {
             } 
           />
 
-          {/* User Routes */}
+          {/* User Routes - require full auth (first-time setup completed) */}
           <Route 
             path="/home" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireFullAuth>
                 <HomePage />
               </ProtectedRoute>
             } 
           />
           <Route 
-            path="/courses" 
+            path="/courses"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireFullAuth>
                 <AllCoursesPage />
               </ProtectedRoute>
             } 
@@ -131,7 +135,7 @@ function App() {
           <Route 
             path="/course/:courseId" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireFullAuth>
                 <CourseDetailPage />
               </ProtectedRoute>
             } 
@@ -139,7 +143,7 @@ function App() {
           <Route 
             path="/course/:courseId/lesson/:lessonId" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireFullAuth>
                 <LessonPage />
               </ProtectedRoute>
             } 
@@ -147,7 +151,7 @@ function App() {
           <Route 
             path="/course/:courseId/quiz" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireFullAuth>
                 <QuizPage />
               </ProtectedRoute>
             }
@@ -155,7 +159,7 @@ function App() {
           <Route 
             path="/course/:courseId/quiz-result" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireFullAuth>
                 <QuizResultPage />
               </ProtectedRoute>
             }
