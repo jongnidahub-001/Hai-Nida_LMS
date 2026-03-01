@@ -362,22 +362,23 @@ function QuizPage() {
           <div className="box quiz-complete-card">
             <h2 className="title is-2 has-text-centered mb-6">Quiz Completed!</h2>
             
-            <div className="quiz-complete-layout">
-              <div className="quiz-complete-left">
-                <div className="has-text-centered mb-4">
-                  <div className="score-circle">
-                    <span className="score-percentage">{Math.round(score.percentage)}%</span>
-                    <span className="score-fraction">{score.score}/{score.total_points}</span>
-                  </div>
+            {/* Quiz score at top */}
+            <div className="quiz-score-top mb-6">
+              <div className="has-text-centered mb-4">
+                <div className="score-circle">
+                  <span className="score-percentage">{Math.round(score.percentage)}%</span>
+                  <span className="score-fraction">{score.score}/{score.total_points}</span>
                 </div>
-                <p className="is-size-5 has-text-centered">
-                  {score.percentage >= 70 ? 
-                    "Congratulations! You've passed the quiz!" :
-                    "You didn't pass the quiz. Review the course material and try again later."}
-                </p>
               </div>
-              
-              <div className="quiz-complete-right">
+              <p className="is-size-5 has-text-centered">
+                {score.percentage >= 70 ? 
+                  "Congratulations! You've passed the quiz!" :
+                  "You didn't pass the quiz. Review the course material and try again later."}
+              </p>
+            </div>
+
+            <div className="quiz-complete-layout">
+              <div className="quiz-complete-right quiz-complete-right-full">
                 {analysis && (analysis.strengths?.length || analysis.weaknesses?.length || 
                   analysis.intensive_lessons?.length || analysis.related_lessons_for_improvement?.length || 
                   analysis.related_lessons?.length || ('intensive_lessons' in analysis)) ? (
