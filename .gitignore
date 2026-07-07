@@ -1,3 +1,7 @@
 backend/venv/
 backend/.venv/
 .venvconvert/
+
+# Robot Framework test results
+tests/results/
+!tests/results/.gitkeep

@@ -33,6 +33,8 @@
 | 25 | admin-course-users.png | แท็บ Enrolled Users |
 | 26 | admin-user-detail.png | หน้ารายละเอียดผู้ใช้ |
 | 27 | admin-view-answers.png | Modal View Answers |
+| 28 | admin-settings.png | หน้า Gemini API Settings |
+| 29 | admin-quizzes.png | หน้า All Quiz Scores |
 
 ---
 
