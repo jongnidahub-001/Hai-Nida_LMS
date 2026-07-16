@@ -1,5 +1,6 @@
 *** Settings ***
-Documentation    Capture screenshots ของหน้า Login และ First Time Setup
+Documentation    Suite 2: Capture หน้า Login, Login Error, First Time Setup
+...              (ต้องรัน 01_admin_setup ก่อน เพื่อสร้าง test user)
 Resource         resources/common.resource
 Suite Setup      Open Browser To App
 Suite Teardown   Close Browser
@@ -28,15 +29,21 @@ Capture Login Error Page
     Wait And Screenshot    login-error.png
 
 Capture First Time Setup Page
-    [Documentation]    หน้าตั้งค่าแรกเข้า (ต้องมี user ที่ is_auth=false)
-    [Tags]    requires-first-time-user
-    # Login with first-time user (is_auth=false)
-    Go To    ${BASE_URL}/login
-    Wait For Elements State    input[type="text"]    visible
-    Fill Text    input[type="text"]    ${USER_EMAIL}
-    Fill Text    input[type="password"]    ${USER_PASSWORD}
-    Click    button[type="submit"]
-    # Wait for redirect to first-time-setup
-    Wait For Condition    url    should contain    /first-time-setup    timeout=${DEFAULT_TIMEOUT}
+    [Documentation]    หน้าตั้งค่าแรกเข้า + complete setup เพื่อให้ user พร้อมใช้ใน suite ถัดไป
+    # Login with new user (default password) -> redirect to /first-time-setup
+    Login As New User
     Sleep    ${ANIMATION_WAIT}
     Wait And Screenshot    first-time-setup.png
+    # Complete first-time setup
+    Complete First Time Setup
+
+*** Keywords ***
+Complete First Time Setup
+    [Documentation]    กรอกข้อมูล first-time setup
+    Fill Text    input[placeholder="Enter your username"]    ${USER_USERNAME}
+    Fill Text    input[placeholder="Enter your full name"]    ${USER_FULLNAME}
+    Fill Text    input[placeholder*="new password"] >> nth=0    ${USER_NEW_PWD}
+    Fill Text    input[placeholder*="Confirm"] >> nth=0    ${USER_NEW_PWD}
+    Click    button[type="submit"]
+    Wait For Condition    url    contains    /login    timeout=${DEFAULT_TIMEOUT}
+    Sleep    ${ANIMATION_WAIT}

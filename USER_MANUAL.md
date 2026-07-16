@@ -416,6 +416,66 @@
 5. ตรวจสอบ/แก้ไข Quiz → คลิก "Submit Quiz" → บันทึกลง Database
 ```
 
+### 11.6 หน้า Course Preview
+
+| ตำแหน่ง | ส่วนประกอบ |
+|---------|------------|
+| **ด้านบน** | Header + หัวข้อ "Course Preview" + ปุ่ม "Back to Courses" |
+| **แท็บ** | Course Preview / Agent Logs |
+| **หลัก (Course Preview)** | ข้อมูลคอร์ส (ชื่อ, คำอธิบาย, ระดับ, ชั่วโมง), Learning Objectives, Prerequisites, รายการบทเรียน (Expandable) |
+| **ด้านล่าง** | ปุ่ม "Re-Generate" + ปุ่ม "Create Quiz" |
+
+#### ปุ่มและองค์ประกอบ
+
+| องค์ประกอบ | การทำงาน |
+|-----------|---------|
+| **ช่อง Course Name** | แก้ไขชื่อคอร์สได้ |
+| **บทเรียน (Expandable)** | คลิกขยายดูเนื้อหา Markdown ของแต่ละบท |
+| **ปุ่ม Edit (ในบทเรียน)** | เปิดช่อง prompt สำหรับสั่ง AI แก้ไขบทเรียนนั้น |
+| **ปุ่ม Save Changes** | บันทึกการแก้ไขจาก AI (หลัง preview) |
+| **ปุ่ม Discard Changes** | ยกเลิกการแก้ไข กลับไปเนื้อหาเดิม |
+| **ปุ่ม Re-Generate** | สร้างคอร์สใหม่ทั้งหมดจากเอกสารเดิม |
+| **ปุ่ม Create Quiz** | ส่งเนื้อหาคอร์สไปให้ AI สร้างแบบทดสอบ → ไปหน้า Quiz Preview |
+
+#### การแก้ไขบทเรียน
+
+1. คลิกปุ่ม "Edit" ที่บทเรียนที่ต้องการแก้ไข
+2. พิมพ์ prompt บอก AI ว่าต้องการเปลี่ยนอะไร (เช่น "แก้ไขให้ละเอียดกว่านี้ เพิ่มตัวอย่าง 1-2 ตัวอย่าง สถานการณ์จริง")
+3. คลิก "Regenerate" → AI สร้างเนื้อหาใหม่
+4. ระบบแสดงป้าย "Preview" สีเหลือง บนบทเรียนที่แก้ไข
+5. ตรวจสอบ → คลิก "Save Changes" เพื่อยืนยัน หรือ "Discard Changes" เพื่อยกเลิก
+
+![หน้า Course Preview](images/admin-course-preview.png)
+
+### 11.7 หน้า Quiz Preview
+
+| ตำแหน่ง | ส่วนประกอบ |
+|---------|------------|
+| **ด้านบน** | Header + หัวข้อ "Quiz Preview" + ปุ่ม "Back to Course Preview" |
+| **แท็บ** | Quiz Preview / Agent Logs |
+| **หลัก (Quiz Preview)** | ข้อมูล Quiz (ชื่อ, คำอธิบาย, จำนวนคำถาม), รายการคำถาม (Expandable) พร้อมตัวเลือก/คำตอบ |
+| **ด้านล่าง** | ปุ่ม "Re-Generate" + ปุ่ม "Submit Quiz" |
+
+#### ปุ่มและองค์ประกอบ
+
+| องค์ประกอบ | การทำงาน |
+|-----------|---------|
+| **คำถาม (Expandable)** | คลิกขยายดูตัวเลือกและคำตอบที่ถูกต้อง |
+| **ปุ่ม Edit (ในคำถาม)** | เปิดช่อง prompt สำหรับสั่ง AI แก้ไขคำถามนั้น |
+| **ปุ่ม Save Changes** | บันทึกการแก้ไขคำถามจาก AI |
+| **ปุ่ม Discard Changes** | ยกเลิกการแก้ไข กลับไปคำถามเดิม |
+| **ปุ่ม Re-Generate** | สร้าง Quiz ใหม่ทั้งหมด |
+| **ปุ่ม Submit Quiz** | บันทึกคอร์ส + Quiz ลง Database → กลับหน้า Course Management |
+
+#### การแก้ไขคำถาม
+
+1. คลิกปุ่ม "Edit" ที่คำถามที่ต้องการแก้ไข
+2. พิมพ์ prompt (เช่น "เปลี่ยนคำถามให้ยากกว่านี้)
+3. คลิก "Regenerate" → AI สร้างคำถามใหม่
+4. ตรวจสอบ → "Save Changes" หรือ "Discard Changes"
+
+![หน้า Quiz Preview](images/admin-quiz-preview.png)
+
 ![หน้า Course Management แท็บ Courses](images/admin-courses.png)
 
 ![แท็บ Process และตาราง tasks](images/admin-process.png)

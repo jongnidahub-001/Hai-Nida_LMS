@@ -28,35 +28,25 @@ body {
   color: var(--primary-black) !important;
 }
 
-/* Override any dark mode preferences */
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: light !important;
-    background-color: #ffffff !important;
-  }
-  
-  body {
-    background-color: #ffffff !important;
-    color: #363636 !important;
-  }
-  
-    /* Force all text to be dark on light backgrounds */
-    * {
-      color: #363636 !important;
-    }
-  
-  /* Ensure form elements remain light */
-  input, textarea, select {
-    background-color: #ffffff !important;
-    color: #363636 !important;
-    border-color: #dbdbdb !important;
-  }
-  
-  /* Ensure cards and containers remain light */
-  .card, .box, .panel {
-    background-color: #ffffff !important;
-    color: #363636 !important;
-  }
+/* Force consistent light appearance regardless of system color scheme */
+.has-background-info-light,
+.has-background-warning-light {
+  background-color: #ffffff !important;
+}
+
+* {
+  color: #363636 !important;
+}
+
+input, textarea, select {
+  background-color: #ffffff !important;
+  color: #363636 !important;
+  border-color: #dbdbdb !important;
+}
+
+.card, .box, .panel {
+  background-color: #ffffff !important;
+  color: #363636 !important;
 }
 
 code {

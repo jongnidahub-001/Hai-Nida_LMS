@@ -123,10 +123,11 @@ def create_team_for_request(document_content: str, difficulty_level: str):
         output_content_type=FinalOutput,
     )
     
+    formatted_critic_message = critic_agent_prompt.format(difficulty_level=difficulty_level)
     critic_agent = AssistantAgent(
         "Validator_Agent",
         model_client=model_client,
-        system_message=critic_agent_prompt,
+        system_message=formatted_critic_message,
     )
     
     # Define termination condition
@@ -150,31 +151,33 @@ Instructions:
 - Create the course with the specified difficulty level: **{difficulty_level}**
 - Each lesson must be directly related to the course and match the specified difficulty level.
 
-**Difficulty Level Guidelines:**
+**Difficulty Level Guidelines (STRICT – Must Be Visibly Different):**
 
-**CASUAL:**
-- Focus on basic concepts and fundamental understanding
-- Use simple language and clear, straightforward explanations
-- Include more practical examples and real-world applications
-- Shorter lesson durations (1-2 hours per lesson)
-- Minimal prerequisites required
-- Step-by-step guidance with plenty of support materials
+**CASUAL (Beginner-friendly, Foundation):**
+- Content Depth: Explain WHAT and WHY only. 1-2 main topics per lesson.
+- Language: Short sentences (10-15 words). Simple vocabulary. Use analogies frequently.
+- Cognitive: Remember + Understand (Bloom's levels 1-2).
+- Structure: 4-6 lessons, 1-2 hours each. Total 6-12 hours. Minimal/no prerequisites. learning_objectives: 3-5 items.
+- Activities: Simple step-by-step exercises. Reflection: "What did you understand about X?"
+- AVOID: Technical jargon, trade-off analysis, multi-step reasoning.
 
-**REGULAR:**
-- Cover intermediate concepts with moderate depth
-- Balance theory with practical applications
-- Include case studies and moderate complexity examples
-- Standard lesson durations (2-3 hours per lesson)
-- Some foundational knowledge expected as prerequisites
-- Mix of guided instruction and independent learning
+**REGULAR (Intermediate, Application-focused):**
+- Content Depth: Explain HOW and WHEN. 2-3 topics + connections. Include case studies.
+- Language: Medium sentences (15-25 words). Moderate technical terms with brief explanations.
+- Cognitive: Apply + Analyze (Bloom's levels 3-4).
+- Structure: 5-8 lessons, 2-3 hours each. Total 12-24 hours. 2-3 prerequisites. learning_objectives: 5-8 items.
+- Activities: Case studies with 2-3 options. Reflection: "How would you apply X in scenario Y?"
+- AVOID: Over-simplification (Casual style). Deep theoretical proofs (Intense style).
 
-**INTENSE:**
-- Deep dive into advanced concepts and complex topics
-- Assume strong foundational knowledge
-- Include challenging case studies, complex problem-solving scenarios
-- Longer lesson durations (3-4 hours per lesson)
-- Multiple prerequisites and advanced preparation required
-- Emphasis on critical thinking, analysis, and independent research
+**INTENSE (Advanced, Critical Thinking):**
+- Content Depth: Explain WHY NOT, trade-offs, alternatives. 3-4 topics + deep analysis.
+- Language: Longer, complex sentences (20-35 words). Full technical vocabulary assumed.
+- Cognitive: Evaluate + Create (Bloom's levels 5-6).
+- Structure: 6-10 lessons, 3-4 hours each. Total 18-40 hours. 4+ prerequisites. learning_objectives: 7-12 items.
+- Activities: Open-ended case studies, design-your-own scenarios. Reflection: "Compare X and Z. What are trade-offs? How would you design...?"
+- AVOID: Basic definitions (assume prior knowledge). Hand-holding step-by-step.
+
+**CRITICAL:** For the SAME document, Casual content must read 50% shorter and simpler than Regular. Regular must read 40% less technical than Intense.
 
 - Each lesson content must:
   - Cover all topics in the lesson thoroughly according to the **{difficulty_level}** difficulty level.
@@ -229,6 +232,33 @@ Role: You are a master at validating courses, lessons and lesson content. You ar
 Goal: Validate the course, lesson and lesson content for quality, completeness, educational value, AND proper markdown formatting. Provide constructive feedback to the expert agent. Respond with 'APPROVE' (only in capital letters with no other text) when ALL your feedbacks are addressed. If not, do NOT include "APPROVE" in your response.
 
 Backstory: With over 10 years of experience in education and technical writing, you are a master at validating courses and ensuring content is properly formatted for readability.
+
+**Difficulty Level Validation (Check before APPROVE):**
+
+The course being validated has difficulty level: **{difficulty_level}**. Apply the appropriate checklist:
+
+For CASUAL course:
+- [ ] No unexplained technical jargon
+- [ ] Lessons are 1-2 hours each, total course 6-12 hours
+- [ ] Content answers "what is it?" not "how to compare alternatives"
+- [ ] Prerequisites are minimal (0-2 items)
+- [ ] Reflection questions ask for understanding, not application design
+
+For REGULAR course:
+- [ ] Mix of theory and application, with case studies
+- [ ] Lessons are 2-3 hours each, total 12-24 hours
+- [ ] Content includes "how to apply" with examples
+- [ ] Prerequisites are moderate (2-3 items)
+- [ ] Reflection questions ask for application in scenarios
+
+For INTENSE course:
+- [ ] Deep analysis, trade-offs, multiple viewpoints
+- [ ] Lessons are 3-4 hours each, total 18-40 hours
+- [ ] Content assumes prior knowledge, no basic definitions
+- [ ] Prerequisites are substantial (4+ items)
+- [ ] Reflection questions ask for evaluation, comparison, or design
+
+If the course reads like it could be another level, REJECT and specify: "Content does not match {difficulty_level}. Specifically: [list what makes it too easy or too hard]."
 
 **VALIDATION CHECKLIST:**
 
@@ -395,9 +425,14 @@ Regenerate and improve a lesson based on the user's prompt/instructions. You mus
 ### USER'S EDIT REQUEST ###
 {user_prompt}
 
+### DIFFICULTY LEVEL GUIDELINES ({difficulty_level}) ###
+- CASUAL: Short sentences (10-15 words), simple vocabulary, analogies, 1-2 topics. Reflection: "What did you understand about X?"
+- REGULAR: Medium sentences (15-25 words), case studies. Reflection: "How would you apply X in scenario Y?"
+- INTENSE: Longer complex sentences (20-35 words), trade-offs, deep analysis. Reflection: "Compare X and Z. What are trade-offs?"
+
 ### INSTRUCTIONS ###
 1. Based on the user's request, regenerate the lesson with improved or modified content.
-2. Maintain consistency with the course's difficulty level ({difficulty_level}).
+2. Maintain consistency with the course's difficulty level ({difficulty_level}) per guidelines above.
 3. The lesson content must:
    - Cover all topics thoroughly according to the difficulty level
    - Include at least 500 words (or enough content for the lesson duration)

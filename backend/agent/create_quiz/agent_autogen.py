@@ -111,31 +111,33 @@ Instructions:
 - Create questions of different types: Multiple Choice, Subjective, and Fill in the Blank.
 - Each question must be directly related to the content in the document and match the specified difficulty level.
 
-**Difficulty Level Guidelines:**
+**Difficulty Level Guidelines (STRICT – Must Be Visibly Harder Each Level):**
 
-**CASUAL:**
-- Focus on basic recall and fundamental understanding
-- Use straightforward language and simple concepts
-- Multiple Choice: Clear distinctions between correct and incorrect answers
-- Questions test basic facts, definitions, and simple applications
-- Point values: 1-3 points per question
-- Avoid complex reasoning or multi-step problems
+**CASUAL (Recall & Basic Understanding):**
+- Bloom's: Remember + Understand only.
+- Multiple Choice: Question 10-20 words. Correct answer is direct from document. Wrong answers are obviously wrong (definitions of unrelated terms).
+- Subjective: "What is X?" or "Define X." Answer in 1-2 sentences. 1-2 points.
+- Fill in the Blank: Single keyword from document. Strong context clues in sentence.
+- Points: 1-3 per question. 70% of questions = recall.
+- AVOID: Scenario-based questions, comparing options, multi-step reasoning.
 
-**REGULAR:**
-- Test intermediate understanding and application
-- Include some analysis and interpretation questions
-- Multiple Choice: Include plausible distractors that require moderate knowledge
-- Questions test comprehension, application, and basic analysis
-- Point values: 2-5 points per question
-- Mix of recall and application-based questions
+**REGULAR (Application & Analysis):**
+- Bloom's: Apply + Analyze.
+- Multiple Choice: Question 25-40 words with a scenario. Correct answer requires understanding "how/when to use." Distractors are plausible but wrong for this scenario.
+- Subjective: "In scenario Y, how would you apply X? Explain." Answer 2-4 sentences with reasoning. 2-4 points.
+- Fill in the Blank: Term that requires understanding sentence context, not just keyword match.
+- Points: 2-5 per question. Balance recall and application.
+- AVOID: Trivial recall (Casual). Deep trade-off analysis (Intense).
 
-**INTENSE:**
-- Test deep understanding, critical thinking, and complex application
-- Require synthesis of multiple concepts and advanced reasoning
-- Multiple Choice: Complex scenarios with sophisticated distractors
-- Questions test analysis, synthesis, evaluation, and problem-solving
-- Point values: 5-10 points per question
-- Focus on higher-order thinking skills and complex applications
+**INTENSE (Evaluation & Synthesis):**
+- Bloom's: Evaluate + Create.
+- Multiple Choice: Question 40-70 words, complex scenario. Correct answer requires comparing options, eliminating wrong ones. All distractors are plausible; must reason to choose.
+- Subjective: "Compare X and Z. What are trade-offs? When would you choose which? justify." Answer 4+ sentences, multiple factors. 4-6 points.
+- Fill in the Blank: Phrase or term requiring synthesis of multiple concepts from context.
+- Points: 5-10 per question. 50%+ questions = analysis/synthesis.
+- AVOID: Definition-only questions. Simple scenario with obvious answer.
+
+**CRITICAL:** Casual = answer in seconds. Regular = think 30+ seconds. Intense = think 1+ minute. If a Casual learner can answer an Intense question easily, it's not Intense.
 
 - For Multiple Choice questions:
   - Provide 4 choices with only one correct answer.
@@ -172,6 +174,34 @@ critic_agent_prompt = """
     Role : You are a master at validating quizzes, questions, choices, and answers. You are an expert at ensuring quiz quality and correctness.
     Goal : Validate the quiz, questions, choices, and answers for accuracy and quality. Provide constructive feedback to the expert agent. Respond with 'APPROVE' (only in capital letters with no other text) when all questions and answers are correct and the quiz meets quality standards. If not, do not include "APPROVE" in your response. Only include "APPROVE" if the quiz, questions, and answers are all correct and approved.
     Backstory : With over 10 years of experience in educational assessment and quiz validation, you are a master at ensuring quiz accuracy, question clarity, and answer correctness.
+
+    **Difficulty Level Validation (Check before APPROVE):**
+
+    The quiz being validated has difficulty level: **{difficulty_level}**. Apply the appropriate checklist:
+
+    For CASUAL quiz:
+    - [ ] MC questions: short (10-20 words), direct from document
+    - [ ] MC distractors: obviously wrong, not plausible
+    - [ ] Subjective: "what is" or "define" only, short answer
+    - [ ] Fill in the blank: single keyword with strong clues
+    - [ ] Points: 1-3 per question
+    - [ ] No scenario-based or comparison questions
+
+    For REGULAR quiz:
+    - [ ] MC questions: 25-40 words, scenario included
+    - [ ] MC distractors: plausible but wrong for the scenario
+    - [ ] Subjective: "how would you apply" with scenario, 2-4 sentences
+    - [ ] Points: 2-5 per question
+    - [ ] Mix of recall and application questions
+
+    For INTENSE quiz:
+    - [ ] MC questions: 40-70 words, complex multi-factor scenario
+    - [ ] MC distractors: all plausible, requires elimination/reasoning
+    - [ ] Subjective: "compare", "evaluate", "trade-offs", 4+ sentences
+    - [ ] Points: 5-10 per question
+    - [ ] Majority of questions require analysis/synthesis
+
+    If any question could fit a lower difficulty (e.g., Intense question is answerable by recall), REJECT: "Question X does not match {difficulty_level}. Reason: [specific feedback]."
 
     Additional Instructions :
     - Verify that all questions are clear and unambiguous.
@@ -213,10 +243,15 @@ Use this document content as the primary source of information for creating accu
 ### USER'S EDIT REQUEST ###
 {user_prompt}
 
+### DIFFICULTY LEVEL GUIDELINES ({difficulty_level}) ###
+- CASUAL: MC 10-20 words, answer from document, distractors obviously wrong. Subjective: "What is X?" 1-2 points. Fill: single keyword.
+- REGULAR: MC 25-40 words with scenario, plausible distractors. Subjective: "How would you apply X?" 2-4 points.
+- INTENSE: MC 40-70 words, complex scenario, all distractors plausible. Subjective: "Compare X and Z" 4-6 points.
+
 ### INSTRUCTIONS ###
 1. Based on the user's request and the SOURCE DOCUMENT, regenerate the question with improved or modified content.
 2. Ensure the question and answer are accurate based on the SOURCE DOCUMENT content.
-3. Maintain consistency with the quiz's difficulty level ({difficulty_level}).
+3. Maintain consistency with the quiz's difficulty level ({difficulty_level}) per guidelines above.
 4. Keep the same question type ({question_type}) unless user explicitly requests a change.
 5. For Multiple Choice questions:
    - Provide exactly 4 choices with only one correct answer
@@ -235,26 +270,35 @@ Use this document content as the primary source of information for creating accu
 Return the regenerated question in the exact RegeneratedQuestionOutput format with question, choices (if applicable), and answers.
 """
 
-# Create the primary agent.
-primary_agent = AssistantAgent(
-    "Expert_Agent",
-    model_client=model_client,
-    system_message=primary_agent_prompt,
-    output_content_type=FinalOutput,
-)
-
-# Create the critic agent.
-critic_agent = AssistantAgent(
-    "Validator_Agent",
-    model_client=model_client,
-    system_message=critic_agent_prompt,
-)
-
 # Define a termination condition that stops the task if the critic approves.
 text_termination = TextMentionTermination("APPROVE")
 
-# Create a team with the primary and critic agents.
-team = RoundRobinGroupChat([primary_agent, critic_agent], termination_condition=text_termination)
+
+def create_team_for_quiz_request(document_content: str, number_of_questions: int, number_of_choices: int, number_of_subjective_questions: int, number_of_fill_in_the_blank_questions: int, difficulty_level: str):
+    """Create fresh agent team for each quiz request to ensure difficulty_level is passed to critic."""
+    formatted_primary = primary_agent_prompt.format(
+        document_content=document_content,
+        number_of_questions=number_of_questions,
+        number_of_choices=number_of_choices,
+        number_of_subjective_questions=number_of_subjective_questions,
+        number_of_fill_in_the_blank_questions=number_of_fill_in_the_blank_questions,
+        difficulty_level=difficulty_level
+    )
+    formatted_critic = critic_agent_prompt.format(difficulty_level=difficulty_level)
+
+    primary_agent = AssistantAgent(
+        "Expert_Agent",
+        model_client=model_client,
+        system_message=formatted_primary,
+        output_content_type=FinalOutput,
+    )
+    critic_agent = AssistantAgent(
+        "Validator_Agent",
+        model_client=model_client,
+        system_message=formatted_critic,
+    )
+    team = RoundRobinGroupChat([primary_agent, critic_agent], termination_condition=text_termination)
+    return team
 
 
 class CreateCourse:
@@ -277,8 +321,8 @@ class CreateCourse:
         valid_difficulties = ['Casual', 'Regular', 'Intense']
         if difficulty_level not in valid_difficulties:
             raise ValueError(f"Invalid difficulty level. Must be one of: {valid_difficulties}")
-        
-        formatted_prompt = primary_agent_prompt.format(
+
+        team = create_team_for_quiz_request(
             document_content=document_content,
             number_of_questions=number_of_questions,
             number_of_choices=number_of_choices,
@@ -286,8 +330,8 @@ class CreateCourse:
             number_of_fill_in_the_blank_questions=number_of_fill_in_the_blank_questions,
             difficulty_level=difficulty_level
         )
-        
-        result = await team.run(task=formatted_prompt)
+
+        result = await team.run(task="Create the quiz based on the provided document and difficulty level.")
         for i in result.messages:
             print("--------------------------------")
             print("Agent: ",i.source)

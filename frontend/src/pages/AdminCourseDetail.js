@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 import { useNavigate, useParams } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import Header from '../components/Header';
 import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
@@ -10,25 +13,33 @@ import './AdminHomePage.css';
 const LessonExpander = ({ lesson, lessonContents }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const formatMarkdownContent = (content) => {
-    if (!content) return '';
-    
-    // Basic markdown formatting for display (inline backticks -> bold to avoid grey boxes)
-    // Order matters: match longest headers first (###### to #)
-    return content
-      .replace(/^######\s+(.*$)/gim, '<h6 class="title is-6 mt-3 mb-2">$1</h6>')
-      .replace(/^#####\s+(.*$)/gim, '<h5 class="title is-5 mt-3 mb-2">$1</h5>')
-      .replace(/^####\s+(.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
-      .replace(/^###\s+(.*$)/gim, '<h4 class="title is-5 mt-4 mb-2">$1</h4>')
-      .replace(/^##\s+(.*$)/gim, '<h3 class="title is-4 mt-5 mb-3">$1</h3>')
-      .replace(/^#\s+(.*$)/gim, '<h2 class="title is-3 mt-5 mb-3">$1</h2>')
-      .replace(/`([^`]+)`/g, '<strong>$1</strong>')  // inline backticks -> bold (avoids grey code boxes)
-      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-      .replace(/^- (.*$)/gim, '<li>$1</li>')
-      .replace(/^(\d+)\. (.*$)/gim, '<li>$2</li>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br/>');
+  const markdownComponents = {
+    h1: ({children}) => <h1 className="title is-3 mt-5 mb-3">{children}</h1>,
+    h2: ({children}) => <h2 className="title is-4 mt-5 mb-3">{children}</h2>,
+    h3: ({children}) => <h3 className="title is-5 mt-4 mb-2">{children}</h3>,
+    h4: ({children}) => <h4 className="title is-5 mt-4 mb-2">{children}</h4>,
+    h5: ({children}) => <h5 className="title is-5 mt-3 mb-2">{children}</h5>,
+    h6: ({children}) => <h6 className="title is-6 mt-3 mb-2">{children}</h6>,
+    p: ({children}) => <p className="block">{children}</p>,
+    ul: ({children}) => <ul className="content">{children}</ul>,
+    ol: ({children}) => <ol className="content">{children}</ol>,
+    blockquote: ({children}) => (
+      <blockquote className="notification is-info is-light">{children}</blockquote>
+    ),
+    code: ({inline, children, ...props}) =>
+      inline ?
+        <code className="lesson-inline-term" {...props}>{children}</code> :
+        <pre className="notification is-dark"><code {...props}>{children}</code></pre>,
+    table: ({children}) => (
+      <div className="table-container">
+        <table className="table is-striped is-hoverable is-fullwidth">{children}</table>
+      </div>
+    ),
+    thead: ({children}) => <thead>{children}</thead>,
+    tbody: ({children}) => <tbody>{children}</tbody>,
+    tr: ({children}) => <tr>{children}</tr>,
+    th: ({children}) => <th>{children}</th>,
+    td: ({children}) => <td>{children}</td>
   };
 
   return (
@@ -133,10 +144,15 @@ const LessonExpander = ({ lesson, lessonContents }) => {
                           maxHeight: '500px',
                           overflowY: 'auto'
                         }}
-                        dangerouslySetInnerHTML={{ 
-                          __html: formatMarkdownContent(contentItem.content) 
-                        }}
-                      />
+                      >
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeRaw]}
+                          components={markdownComponents}
+                        >
+                          {contentItem.content || ''}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -377,12 +393,7 @@ function AdminCourseDetail() {
           <div className="tabs is-boxed">
             <ul>
               <li className={activeTab === 'course' ? 'is-active' : ''}>
-                <a style={{ 
-                      color: activeTab === 'logs' ? 'var(--primary-black)' : 'white',
-                      backgroundColor: activeTab === 'logs' ? 'white' : 'transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
+                <a style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
                     onClick={() => setActiveTab('course')}>
                   <span className="icon is-small">
                     <i className="fas fa-book"></i>
@@ -392,12 +403,7 @@ function AdminCourseDetail() {
               </li>
               <li className={activeTab === 'quiz' ? 'is-active' : ''}>
                 <a 
-                style={{ 
-                      color: activeTab === 'logs' ? 'var(--primary-black)' : 'white',
-                      backgroundColor: activeTab === 'logs' ? 'white' : 'transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
+                style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
                 onClick={() => setActiveTab('quiz')}>
                   <span className="icon is-small">
                     <i className="fas fa-question-circle"></i>
@@ -407,12 +413,7 @@ function AdminCourseDetail() {
               </li>
               <li className={activeTab === 'users' ? 'is-active' : ''}>
                 <a 
-                style={{ 
-                      color: activeTab === 'logs' ? 'var(--primary-black)' : 'white',
-                      backgroundColor: activeTab === 'logs' ? 'white' : 'transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
+                style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
                 onClick={() => setActiveTab('users')}>
                   <span className="icon is-small">
                     <i className="fas fa-users"></i>

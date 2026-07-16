@@ -1,6 +1,8 @@
 backend/venv/
 backend/.venv/
 .venvconvert/
+.venv
+.venvrobot
 
 # Robot Framework test results
 tests/results/
