@@ -1,7 +1,4 @@
-version: '3.8'
-
 services:
-  # Caddy - Reverse Proxy with Auto HTTPS
   caddy:
     image: caddy:2-alpine
     ports:
@@ -18,32 +15,32 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Frontend Service (React Production Build)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        - REACT_APP_API_BASE_URL=https://hai-nida.com
-    ports:
-      - "80"  # Serve on port 80
+        - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
+    expose:
+      - "80"
     depends_on:
       - backend
     networks:
       - app-network
     restart: unless-stopped
 
-  # Backend Service (FastAPI)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "5000"
+      - "5000:5000"
     environment:
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
-      - GOOGLE_API_KEY=AIzaSyCNd1tfREAZbBnhyGuusjcjz7OdexdazCY
+      - CHROMA_HOST=${CHROMA_HOST:-chromadb}
+      - CHROMA_PORT=${CHROMA_PORT:-8000}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS}
     depends_on:
       - chromadb
     volumes:
@@ -53,13 +50,12 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Database Service (ChromaDB)
   chromadb:
     image: chromadb/chroma:1.0.15
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     volumes:
-      - ./chroma-data:/data
+      - chroma-data:/chroma/chroma
     environment:
       - CHROMA_DB_IMPL=chromadb.db.impl.sqlite.SqliteDB
     networks:

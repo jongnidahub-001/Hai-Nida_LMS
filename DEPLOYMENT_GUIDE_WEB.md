@@ -324,7 +324,7 @@ cd hai-nida
 
 ```bash
 cat > Caddyfile << 'EOF'
-your-domain.com {
+hai-nida.com {
     # Backend API - ต้องอยู่ก่อน frontend (more specific path)
     handle /api/* {
         reverse_proxy backend:5000
