@@ -1,28 +1,38 @@
 # คู่มือการใช้งานระบบ Learning Management System (LMS) – Hi HR
 
-**เวอร์ชัน**: 3.0  
-**วันที่อัปเดตล่าสุด**: 30 มิถุนายน 2026
+**เวอร์ชัน**: 5.0  
+**วันที่อัปเดตล่าสุด**: 19 กรกฎาคม 2026
 
 ---
 
 ## สารบัญ
 
+**ภาพรวมและการเข้าใช้งาน**
+
 1. [ภาพรวมระบบและ Use Case](#1-ภาพรวมระบบและ-use-case)
 2. [การเริ่มต้นใช้งาน](#2-การเริ่มต้นใช้งาน)
 3. [หน้าล็อกอิน](#3-หน้าล็อกอิน)
 4. [หน้าตั้งค่าแรกเข้า (First Time Setup)](#4-หน้าตั้งค่าแรกเข้า)
+
+**ส่วนผู้เรียน (User)**
+
 5. [หน้าหลักผู้เรียน (Dashboard)](#5-หน้าหลักผู้เรียน-dashboard)
 6. [หน้าคอร์สทั้งหมด (All Courses)](#6-หน้าคอร์สทั้งหมด)
 7. [หน้ารายละเอียดคอร์ส](#7-หน้ารายละเอียดคอร์ส)
 8. [หน้าบทเรียน](#8-หน้าบทเรียน)
-9. [หน้าแบบทดสอบ (Quiz)](#9-หน้าแบบทดสอบ)
-10. [แดชบอร์ดผู้ดูแลระบบ (Admin Dashboard)](#10-แดชบอร์ดผู้ดูแลระบบ)
-11. [หน้าจัดการคอร์ส (Admin Course Management)](#11-หน้าจัดการคอร์ส)
+9. [หน้าแบบทดสอบและผลคะแนน (Quiz)](#9-หน้าแบบทดสอบและผลคะแนน)
+
+**ส่วนผู้ดูแลระบบ (Admin)**
+
+10. [การจัดการผู้ใช้ (Admin User Management)](#10-การจัดการผู้ใช้)
+11. [การจัดการคอร์ส (Admin Course Management)](#11-การจัดการคอร์ส)
 12. [หน้ารายละเอียดคอร์ส (Admin)](#12-หน้ารายละเอียดคอร์ส-admin)
-13. [หน้ารายละเอียดผู้ใช้ (Admin)](#13-หน้ารายละเอียดผู้ใช้-admin)
+13. [หน้า All Quiz Scores (Admin)](#13-หน้า-all-quiz-scores)
 14. [หน้า Gemini Settings (Admin)](#14-หน้า-gemini-settings)
-15. [หน้า All Quiz Scores (Admin)](#15-หน้า-all-quiz-scores)
-16. [คำถามที่พบบ่อย (FAQ)](#16-คำถามที่พบบ่อย)
+
+**อ้างอิง**
+
+15. [คำถามที่พบบ่อย (FAQ)](#15-คำถามที่พบบ่อย)
 
 ---
 
@@ -128,6 +138,10 @@
 - รหัสผ่านกับ Confirm Password ต้องตรงกัน
 
 ![หน้าตั้งค่าแรกเข้า](images/first-time-setup.png)
+
+---
+
+# ส่วนผู้เรียน (User)
 
 ---
 
@@ -288,7 +302,7 @@
 
 ---
 
-## 9. หน้าแบบทดสอบ
+## 9. หน้าแบบทดสอบและผลคะแนน
 
 ### 9.1 ขณะทำแบบทดสอบ
 
@@ -326,6 +340,29 @@
 - คำถาม Subjective/Fill in the Blank จะถูก **AI ตรวจ** ให้คะแนนอัตโนมัติ
 - หลังทำเสร็จ สามารถดูผลได้ที่ปุ่ม "Quiz Result" ในหน้ารายละเอียดคอร์ส
 
+### 9.6 หน้าผลแบบทดสอบ (Quiz Result)
+
+ผู้เรียนสามารถดูผลแบบทดสอบได้ตลอดเวลาหลังจากทำเสร็จ โดยกดปุ่ม "Quiz Result" ในหน้ารายละเอียดคอร์ส
+
+| ตำแหน่ง | ส่วนประกอบ |
+|---------|------------|
+| **ด้านบน** | Header |
+| **หลัก (บน)** | ชื่อคอร์ส, วงกลมคะแนน (%), ข้อความผ่าน/ไม่ผ่าน |
+| **หลัก (กลาง)** | AI Analysis: จุดแข็ง (Strengths) และจุดที่ควรปรับปรุง (Weaknesses) |
+| **หลัก (ล่าง)** | Recommendations: Intensive Lessons (คอร์สระดับอื่นในหัวข้อเดียวกัน), Related Lessons |
+| **ปุ่ม** | Back to Course, ลิงก์ไปบทเรียนที่แนะนำ |
+
+#### การเข้าถึงผลแบบทดสอบ
+
+- **จากหน้ารายละเอียดคอร์ส**: กดปุ่ม "Quiz Result" (แสดงเมื่อทำ quiz แล้ว)
+- **จากหน้า Quiz Completed**: ระบบแสดงผลทันทีหลังส่ง quiz
+
+#### คำแนะนำจาก AI
+
+- **Intensive Lessons**: บทเรียนระดับอื่น (เช่น Regular/Intense) ในหัวข้อเดียวกันที่ควรเรียนเพิ่ม
+- **Related Lessons**: บทเรียนที่เกี่ยวข้องในคอร์สอื่นที่ช่วยเสริมจุดอ่อน
+- ผู้เรียนสามารถคลิกที่คำแนะนำเพื่อไปเรียนบทนั้นได้เลย (ถ้ายังไม่ enroll จะมี modal ให้ลงทะเบียนก่อน)
+
 ![หน้าแบบทดสอบขณะทำ](images/quiz-taking.png)
 
 ![คำถามแบบ Subjective และ Fill in the Blank](images/quiz-questions.png)
@@ -334,16 +371,22 @@
 
 ---
 
-## 10. แดชบอร์ดผู้ดูแลระบบ
+# ส่วนผู้ดูแลระบบ (Admin)
 
-### 10.1 เค้าโครงหน้า
+---
+
+## 10. การจัดการผู้ใช้
+
+### 10.1 แดชบอร์ดผู้ดูแลระบบ (All Users)
+
+#### เค้าโครงหน้า
 
 | ตำแหน่ง | ส่วนประกอบ |
 |---------|------------|
 | **ด้านบน** | Header (ลิงก์ All Users / All Courses / Setting, ปุ่ม Logout) |
 | **หลัก** | แผ่น "All Users": ปุ่ม Add User, ช่อง Search, ตารางผู้ใช้ |
 
-### 10.2 ตารางผู้ใช้
+#### ตารางผู้ใช้
 
 | คอลัมน์ | คำอธิบาย |
 |---------|----------|
@@ -354,7 +397,7 @@
 | Auth Status | Authenticated / First Login Required |
 | Actions | ปุ่ม View Details, ปุ่ม Delete |
 
-### 10.3 ปุ่มและองค์ประกอบ
+#### ปุ่มและองค์ประกอบ
 
 | องค์ประกอบ | การทำงาน |
 |-----------|---------|
@@ -363,7 +406,7 @@
 | **ปุ่ม View Details** | ไปหน้ารายละเอียดผู้ใช้ |
 | **ปุ่ม Delete** | ลบผู้ใช้ (ไม่สามารถลบ admin ได้) |
 
-### 10.4 Modal เพิ่มผู้ใช้
+#### Modal เพิ่มผู้ใช้
 
 | องค์ประกอบ | การทำงาน |
 |-----------|---------|
@@ -374,6 +417,54 @@
 ![แดชบอร์ด All Users](images/admin-dashboard.png)
 
 ![Modal เพิ่มผู้ใช้](images/admin-add-user.png)
+
+### 10.2 หน้ารายละเอียดผู้ใช้
+
+#### เค้าโครงหน้า
+
+| ตำแหน่ง | ส่วนประกอบ |
+|---------|------------|
+| **ด้านบน** | Header + ปุ่ม "Back to Users" |
+| **หัวผู้ใช้** | ชื่อ, แท็ก Role/Email, สถิติ (Username, Enrolled Courses, Quizzes Taken), User Info |
+| **แท็บ** | Enrolled Courses / Quiz Results |
+| **มุมขวาล่าง** | ปุ่ม Delete User (ลอย, สีแดง) |
+
+#### แท็บ Enrolled Courses
+
+- การ์ดคอร์ส (2 คอลัมน์) แสดง Progress Bar, ระดับ, สถานะ
+- ปุ่ม "View Course" → ไปหน้า Admin Course Detail
+
+#### แท็บ Quiz Results
+
+| คอลัมน์ | คำอธิบาย |
+|---------|----------|
+| Course | ชื่อคอร์ส |
+| Score | คะแนน x/y |
+| Status | Completed |
+| Date Taken | วันที่ทำ |
+| Actions | View Course, View Answers |
+
+#### Modal View Answers
+
+- แสดง Course name, Score, Percentage
+- รายการคำถามทีละข้อ:
+  - ข้อความคำถาม
+  - คำตอบผู้ใช้ (พร้อมแท็ก Correct สีเขียว / Incorrect สีแดง)
+  - เฉลย (คำตอบที่ถูกต้อง)
+
+![หน้ารายละเอียดผู้ใช้](images/admin-user-detail.png)
+
+![Modal View Answers](images/admin-view-answers.png)
+
+### 10.3 การลบผู้ใช้
+
+- คลิกปุ่ม "Delete" ในตาราง All Users หรือปุ่ม "Delete User" ในหน้ารายละเอียดผู้ใช้
+- ระบบแสดง Modal ยืนยัน → แสดงข้อมูลที่จะถูกลบ:
+  - บัญชีผู้ใช้และข้อมูลทั้งหมด
+  - การลงทะเบียนคอร์สและความคืบหน้า
+  - ผลแบบทดสอบทั้งหมด
+- คลิก "Delete User" เพื่อยืนยัน หรือ "Cancel" เพื่อยกเลิก
+- **หมายเหตุ**: ไม่สามารถลบ Admin ได้ (ปุ่ม Delete จะ disabled)
 
 ---
 
@@ -421,7 +512,7 @@
 | ตำแหน่ง | ส่วนประกอบ |
 |---------|------------|
 | **ด้านบน** | Header + หัวข้อ "Course Preview" + ปุ่ม "Back to Courses" |
-| **แท็บ** | Course Preview / Agent Logs |
+| **แท็บ** | Course Preview / Agent Logs / Agent Diagram |
 | **หลัก (Course Preview)** | ข้อมูลคอร์ส (ชื่อ, คำอธิบาย, ระดับ, ชั่วโมง), Learning Objectives, Prerequisites, รายการบทเรียน (Expandable) |
 | **ด้านล่าง** | ปุ่ม "Re-Generate" + ปุ่ม "Create Quiz" |
 
@@ -436,6 +527,24 @@
 | **ปุ่ม Discard Changes** | ยกเลิกการแก้ไข กลับไปเนื้อหาเดิม |
 | **ปุ่ม Re-Generate** | สร้างคอร์สใหม่ทั้งหมดจากเอกสารเดิม |
 | **ปุ่ม Create Quiz** | ส่งเนื้อหาคอร์สไปให้ AI สร้างแบบทดสอบ → ไปหน้า Quiz Preview |
+
+#### แท็บ Agent Logs
+
+- แสดง Token Usage Summary ด้านบน (Prompt tokens, Completion tokens, Total tokens)
+- แสดง log แบบแยกกลุ่มตาม Pipeline Stage (Planning / Lesson Writing / Assembly)
+- แต่ละ log entry แสดงชื่อ Agent, ประเภท output, จำนวน characters และ token usage ของ step นั้น
+- รองรับ Agent ใหม่: planner_agent, outline_reviewer, lesson_writer_L1-LN, lesson_reviewer_L1-LN, assembler
+
+#### แท็บ Agent Diagram
+
+- แสดงภาพ **Agent Pipeline Flow** แบบ interactive graph (ใช้ React Flow)
+- **Drag & Drop**: ลาก node ได้อิสระ, Pan (ลาก canvas), Zoom (scroll wheel)
+- **MiniMap**: แผนที่ย่อมุมล่างซ้ายสำหรับ navigate
+- **Controls**: ปุ่ม Zoom In/Out/Fit มุมล่างขวา
+- **กล่อง Group**: Writer + Reviewer ของแต่ละ Lesson ถูกครอบด้วยกล่องสีม่วง (Lesson 1, Lesson 2, ...)
+- **เส้นเชื่อม**: เส้นทึบ + ลูกศร animated = Data flow, เส้นประสีม่วง = Review loop
+- **Token Usage**: แต่ละ node แสดงจำนวน token ที่ใช้ + Total Token Usage Summary ด้านล่าง
+- **คลิก node**: แสดงรายละเอียด log entries ของ agent นั้นพร้อม token breakdown (in/out)
 
 #### การแก้ไขบทเรียน
 
@@ -452,7 +561,7 @@
 | ตำแหน่ง | ส่วนประกอบ |
 |---------|------------|
 | **ด้านบน** | Header + หัวข้อ "Quiz Preview" + ปุ่ม "Back to Course Preview" |
-| **แท็บ** | Quiz Preview / Agent Logs |
+| **แท็บ** | Quiz Preview / Agent Logs / Agent Diagram |
 | **หลัก (Quiz Preview)** | ข้อมูล Quiz (ชื่อ, คำอธิบาย, จำนวนคำถาม), รายการคำถาม (Expandable) พร้อมตัวเลือก/คำตอบ |
 | **ด้านล่าง** | ปุ่ม "Re-Generate" + ปุ่ม "Submit Quiz" |
 
@@ -467,10 +576,23 @@
 | **ปุ่ม Re-Generate** | สร้าง Quiz ใหม่ทั้งหมด |
 | **ปุ่ม Submit Quiz** | บันทึกคอร์ส + Quiz ลง Database → กลับหน้า Course Management |
 
+#### แท็บ Agent Logs
+
+- แสดง Token Usage Summary ด้านบน (Prompt tokens, Completion tokens, Total tokens)
+- แสดง log แบบแยกกลุ่มตาม Pipeline Stage (Planning / Question Writing / Assembly)
+- แต่ละ log entry แสดงชื่อ Agent, ประเภท output, จำนวน characters และ token usage
+- รองรับ Agent ใหม่: quiz_planner, quiz_planner_reviewer, question_writer_T0-TN, question_reviewer_T0-TN, assembler
+
+#### แท็บ Agent Diagram
+
+- แสดงภาพ **Agent Pipeline Flow** แบบ interactive graph
+- มีกล่อง Group ครอบ Writer + Reviewer ของแต่ละ Topic (Topic 1, Topic 2, ...)
+- Feature เดียวกับ Course Preview: Drag, Zoom, MiniMap, เส้นเชื่อม, Token Usage per node + Total
+
 #### การแก้ไขคำถาม
 
 1. คลิกปุ่ม "Edit" ที่คำถามที่ต้องการแก้ไข
-2. พิมพ์ prompt (เช่น "เปลี่ยนคำถามให้ยากกว่านี้)
+2. พิมพ์ prompt (เช่น "เปลี่ยนคำถามให้ยากกว่านี้")
 3. คลิก "Regenerate" → AI สร้างคำถามใหม่
 4. ตรวจสอบ → "Save Changes" หรือ "Discard Changes"
 
@@ -527,83 +649,16 @@
 
 ---
 
-## 13. หน้ารายละเอียดผู้ใช้ (Admin)
+## 13. หน้า All Quiz Scores
 
 ### 13.1 เค้าโครงหน้า
-
-| ตำแหน่ง | ส่วนประกอบ |
-|---------|------------|
-| **ด้านบน** | Header + ปุ่ม "Back to Users" |
-| **หัวผู้ใช้** | ชื่อ, แท็ก Role/Email, สถิติ (Username, Enrolled Courses, Quizzes Taken), User Info |
-| **แท็บ** | Enrolled Courses / Quiz Results |
-| **มุมขวาล่าง** | ปุ่ม Delete User (ลอย, สีแดง) |
-
-### 13.2 แท็บ Enrolled Courses
-
-- การ์ดคอร์ส (2 คอลัมน์) แสดง Progress Bar, ระดับ, สถานะ
-- ปุ่ม "View Course" → ไปหน้า Admin Course Detail
-
-### 13.3 แท็บ Quiz Results
-
-| คอลัมน์ | คำอธิบาย |
-|---------|----------|
-| Course | ชื่อคอร์ส |
-| Score | คะแนน x/y |
-| Status | Completed |
-| Date Taken | วันที่ทำ |
-| Actions | View Course, View Answers |
-
-### 13.4 Modal View Answers
-
-- แสดง Course name, Score, Percentage
-- รายการคำถามทีละข้อ:
-  - ข้อความคำถาม
-  - คำตอบผู้ใช้ (พร้อมแท็ก Correct สีเขียว / Incorrect สีแดง)
-  - เฉลย (คำตอบที่ถูกต้อง)
-
-![หน้ารายละเอียดผู้ใช้](images/admin-user-detail.png)
-
-![Modal View Answers](images/admin-view-answers.png)
-
----
-
-## 14. หน้า Gemini Settings
-
-### 14.1 เค้าโครงหน้า
-
-| ตำแหน่ง | ส่วนประกอบ |
-|---------|------------|
-| **ด้านบน** | Header |
-| **หลัก** | "Gemini API Settings" |
-| **Section 1** | Current Configuration: Version, Status (Active/Inactive), ปุ่ม Edit Version |
-| **Section 2** | Available Models: ตารางรุ่น Gemini ที่ใช้ได้ |
-
-### 14.2 ปุ่มและองค์ประกอบ
-
-| องค์ประกอบ | การทำงาน |
-|-----------|---------|
-| **ปุ่ม Edit Version** | เปิด Modal เลือกรุ่น Gemini |
-| **Modal Edit Version** | Dropdown เลือกรุ่น → ปุ่ม Save / Cancel |
-
-### 14.3 หมายเหตุ
-
-- การเปลี่ยนรุ่น Gemini จะมีผลกับการสร้างคอร์ส/Quiz ครั้งถัดไป
-- Status "Active" หมายถึง API key ใช้งานได้
-
-![หน้า Gemini API Settings](images/admin-settings.png)
-
----
-
-## 15. หน้า All Quiz Scores
-
-### 15.1 เค้าโครงหน้า
 
 | ตำแหน่ง | ส่วนประกอบ |
 |---------|------------|
 | **ด้านบน** | Header |
 | **หลัก** | "All Quiz Scores" + ช่อง Search + ตารางคะแนน + Pagination |
 
-### 15.2 ตารางคะแนน
+### 13.2 ตารางคะแนน
 
 | คอลัมน์ | คำอธิบาย |
 |---------|----------|
@@ -614,7 +669,7 @@
 | Date | วันที่ทำ |
 | Actions | ปุ่ม View Course |
 
-### 15.3 ปุ่มและองค์ประกอบ
+### 13.3 ปุ่มและองค์ประกอบ
 
 | องค์ประกอบ | การทำงาน |
 |-----------|---------|
@@ -626,7 +681,55 @@
 
 ---
 
-## 16. คำถามที่พบบ่อย
+## 14. หน้า Gemini Settings
+
+### 14.1 เค้าโครงหน้า
+
+| ตำแหน่ง | ส่วนประกอบ |
+|---------|------------|
+| **ด้านบน** | Header |
+| **หลัก** | "Gemini API Settings" |
+| **Section 1** | API Key: แสดง key (masked), source (Web Config / .env), ปุ่ม Change Key / Revert to .env |
+| **Section 2** | Model Configuration by Role: 3 การ์ด (Planner, Writer, Grader) แต่ละตัวมี model + status + ปุ่ม Edit |
+| **Section 3** | Available Models: ตารางรุ่น Gemini ที่ใช้ได้ พร้อมแสดงว่าแต่ละ model ถูกใช้โดย role ไหน |
+
+### 14.2 การตั้งค่า Model แยกตาม Role
+
+ระบบรองรับการกำหนด AI model แยกตาม 3 บทบาท:
+
+| Role | หน้าที่ | Model แนะนำ |
+|------|---------|-------------|
+| **Planner / Reviewer** | วางโครงร่างคอร์ส/Quiz, ตรวจสอบ outline | Flash (เร็ว, ถูก) |
+| **Content Writer** | เขียนเนื้อหาบทเรียน, สร้างคำถาม Quiz | Pro (สร้างสรรค์, ละเอียด) |
+| **Grader / Evaluator** | ตรวจคำตอบแบบทดสอบ, ให้คะแนน | Flash (เร็ว, ถูก) |
+
+### 14.3 ปุ่มและองค์ประกอบ
+
+| องค์ประกอบ | การทำงาน |
+|-----------|---------|
+| **ปุ่ม Set Key** | เปิด Modal กำหนด API Key ใหม่ |
+| **ปุ่ม Revert to .env** | ลบ custom key กลับไปใช้ key จาก .env file |
+| **ปุ่ม Edit (แต่ละ Role)** | เปิด Modal เลือก model สำหรับ role นั้น |
+| **ปุ่ม Set All** | เปิด Modal ตั้ง model เดียวกันให้ทุก role พร้อมกัน |
+| **Status Badge (Active/Inactive)** | แสดงสถานะของแต่ละ role ว่า model ใช้งานได้หรือไม่ |
+
+### 14.4 หมายเหตุ
+
+- การเปลี่ยน model จะมีผลกับการสร้างคอร์ส/Quiz ครั้งถัดไป
+- ระบบจะ validate model ก่อนบันทึก (ทดสอบเรียก API จริง)
+- หากไม่เคยตั้งค่า role แยก ระบบจะใช้ model เดียวกันทุก role (backward compatible)
+- API Key ใช้ร่วมกันทุก role (key เดียว)
+- Status "Active" หมายถึง model นั้นตอบกลับได้ปกติ
+
+![หน้า Gemini API Settings](images/admin-settings.png)
+
+---
+
+# อ้างอิง
+
+---
+
+## 15. คำถามที่พบบ่อย
 
 ### ทั่วไป
 
@@ -665,7 +768,10 @@ A: All Courses → Import Document → เลือก PDF → ตั้งค�
 A: ลบทุกอย่างที่เกี่ยวข้อง (บทเรียน, แบบทดสอบ, การลงทะเบียน, ความคืบหน้า)
 
 **Q: เปลี่ยนรุ่น Gemini มีผลอย่างไร?**  
-A: มีผลกับการสร้างคอร์ส/Quiz/Chat ครั้งถัดไป คอร์สที่สร้างไปแล้วไม่เปลี่ยน
+A: มีผลกับการสร้างคอร์ส/Quiz/Chat ครั้งถัดไป คอร์สที่สร้างไปแล้วไม่เปลี่ยน สามารถตั้งค่า model แยกตาม role ได้ (Planner, Writer, Grader)
+
+**Q: Token Usage คืออะไร?**  
+A: จำนวน token ที่ AI ใช้ในการประมวลผล แบ่งเป็น Prompt (input) และ Completion (output) ยิ่งใช้เยอะ ค่าใช้จ่าย API ยิ่งสูง ดูได้ในแท็บ Agent Logs และ Agent Diagram
 
 **Q: Import PDF รองรับกี่หน้า?**  
 A: ไม่จำกัดจำนวนหน้า แต่เอกสารขนาดใหญ่จะใช้เวลาสร้างนานขึ้น ระบบจะ compress อัตโนมัติ

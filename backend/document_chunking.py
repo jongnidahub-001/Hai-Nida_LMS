@@ -234,3 +234,90 @@ async def map_reduce_compress_document(
         progress_callback("Ready for course generation", 75)
     
     return combined.strip()
+
+
+# ============== Document Section Routing for Parallel Writers ==============
+
+def split_document_by_topics(
+    text: str,
+    lesson_stubs: list,
+    max_doc_chars: int = MAX_DOC_CHARS,
+) -> List[str]:
+    """
+    Route document sections to individual lesson writers based on Planner output.
+    
+    Uses keyword matching from relevant_doc_sections to send only the most relevant
+    parts of the document to each writer, significantly reducing prompt token cost.
+    
+    Args:
+        text: The full (possibly compressed) document text
+        lesson_stubs: List of dicts with 'relevant_doc_sections' field from Planner
+        max_doc_chars: Threshold for per-writer section size
+        
+    Returns:
+        List of document sections (one per lesson stub).
+    """
+    n = len(lesson_stubs)
+    
+    # If document is short enough, give full text to every writer (no benefit from splitting)
+    if len(text) <= 8000:  # ~2000 tokens — already very cheap per writer
+        return [text] * n
+    
+    # Split by major section breaks (markdown headers, triple newlines)
+    sections = re.split(r'\n(?=#{1,3}\s)', text)
+    
+    if len(sections) <= 1:
+        # Try splitting by double newlines as fallback
+        sections = re.split(r'\n\s*\n', text)
+    
+    if len(sections) <= 1:
+        return [text] * n
+    
+    # Score each section against each lesson's relevant_doc_sections using keyword matching
+    routed = []
+    for stub in lesson_stubs:
+        hints = (stub.get('relevant_doc_sections') or '').lower()
+        # Extract keywords from hints (split by comma, space, and common delimiters)
+        keywords = [k.strip() for k in re.split(r'[,;/\-–—]|\band\b|\bor\b', hints) if len(k.strip()) > 2]
+        
+        if not keywords:
+            # No hints available — give proportional slice
+            per_lesson = max(1, len(sections) // n)
+            idx = lesson_stubs.index(stub)
+            start = idx * per_lesson
+            end = start + per_lesson if idx < n - 1 else len(sections)
+            routed.append("\n\n".join(sections[start:end]))
+            continue
+        
+        # Score each section by keyword match
+        scored_sections = []
+        for sec in sections:
+            sec_lower = sec.lower()
+            score = sum(1 for kw in keywords if kw in sec_lower)
+            scored_sections.append((score, sec))
+        
+        # Sort by relevance and take top sections until we have enough content
+        scored_sections.sort(key=lambda x: x[0], reverse=True)
+        
+        selected = []
+        total_chars = 0
+        max_chars_per_writer = max(8000, len(text) // n + 2000)  # at least 8K, or fair share + buffer
+        
+        for score, sec in scored_sections:
+            if total_chars + len(sec) > max_chars_per_writer and selected:
+                break
+            selected.append(sec)
+            total_chars += len(sec)
+            # Take at minimum sections with score > 0
+            if score == 0 and total_chars > 3000:
+                break
+        
+        chunk = "\n\n".join(selected) if selected else text
+        
+        # Ensure minimum content
+        if len(chunk) < 500:
+            chunk = text  # fallback to full text
+        
+        routed.append(chunk)
+    
+    return routed

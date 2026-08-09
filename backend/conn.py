@@ -1304,6 +1304,23 @@ class DatabaseManager:
             print(f"Error getting uploaded document: {str(e)}")
             return None
     
+    def update_uploaded_document(self, document_id, **kwargs):
+        """Update uploaded document fields (e.g. compressed_text cache)"""
+        try:
+            existing = self.get_uploaded_document(document_id)
+            if not existing:
+                return False, "Document not found"
+            update_data = existing.copy()
+            update_data.update(kwargs)
+            self.uploaded_documents_collection.update(
+                ids=[document_id],
+                metadatas=[update_data],
+                documents=[f"Document: {update_data.get('document_name', '')} User: {update_data.get('user_id', '')}"]
+            )
+            return True, "Document updated"
+        except Exception as e:
+            return False, f"Error updating document: {str(e)}"
+    
     def delete_uploaded_document(self, document_id):
         """Delete uploaded document"""
         try:

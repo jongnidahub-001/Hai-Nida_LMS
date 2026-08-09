@@ -22,7 +22,10 @@ import base64
 from typing import Literal
 from uuid import uuid4
 import httpx
-from gemini_config import get_gemini_model, set_gemini_model
+from gemini_config import (
+    get_gemini_model, set_gemini_model, get_gemini_api_key, set_gemini_api_key,
+    get_model_for_role, set_model_for_role, get_all_role_models, VALID_ROLES
+)
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
@@ -132,6 +135,13 @@ class FirstTimeSetupRequest(BaseModel):
     new_password: str
 
 class UpdateGeminiVersionRequest(BaseModel):
+    model: str
+
+class UpdateGeminiApiKeyRequest(BaseModel):
+    api_key: str
+
+class UpdateGeminiRoleModelRequest(BaseModel):
+    role: str  # "planner", "writer", or "grader"
     model: str
 
 class ChatMessage(BaseModel):
@@ -791,22 +801,31 @@ async def preview_course_with_agent(request: CoursePreviewRequest, current_user:
             if i.source == "Expert_Agent":
                 final_output = i.content.dict()
                 print("Content: ", final_output)
-                log.append({
-                    'agent': i.source,
-                    'content': final_output
-                })
+                log_entry = {'agent': i.source, 'content': final_output}
             else:
                 print("Content: ", i.content)
-                log.append({
-                    'agent': i.source,
-                    'content': i.content
-                })
+                log_entry = {'agent': i.source, 'content': i.content}
+            # Include stage info if available (new pipeline)
+            if hasattr(i, 'stage'):
+                log_entry['stage'] = i.stage
+            if hasattr(i, 'token_usage') and i.token_usage:
+                log_entry['token_usage'] = i.token_usage
+            log.append(log_entry)
             print("--------------------------------")
 
         if final_output:
+            # Calculate total token usage across all agents
+            total_tokens = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+            for entry in log:
+                if entry.get('token_usage'):
+                    total_tokens['prompt_tokens'] += entry['token_usage'].get('prompt_tokens', 0)
+                    total_tokens['completion_tokens'] += entry['token_usage'].get('completion_tokens', 0)
+                    total_tokens['total_tokens'] += entry['token_usage'].get('total_tokens', 0)
+            
             output = {
                 'log': log,
-                'output': final_output
+                'output': final_output,
+                'total_token_usage': total_tokens,
             }
             os.remove(f"./temp/{_id}.pdf")
             return output
@@ -1102,22 +1121,30 @@ async def preview_quiz_with_agent(request: QuizPreviewRequest, current_user: str
             if i.source == "Expert_Agent":
                 final_output = i.content.dict()
                 print("Content: ", final_output)
-                log.append({
-                    'agent': i.source,
-                    'content': final_output
-                })
+                log_entry = {'agent': i.source, 'content': final_output}
             else:
                 print("Content: ", i.content)
-                log.append({
-                    'agent': i.source,
-                    'content': i.content
-                })
+                log_entry = {'agent': i.source, 'content': i.content}
+            if hasattr(i, 'stage') and i.stage:
+                log_entry['stage'] = i.stage
+            if hasattr(i, 'token_usage') and i.token_usage:
+                log_entry['token_usage'] = i.token_usage
+            log.append(log_entry)
             print("--------------------------------")
 
         if final_output:
+            # Calculate total token usage across all agents
+            total_tokens = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+            for entry in log:
+                if entry.get('token_usage'):
+                    total_tokens['prompt_tokens'] += entry['token_usage'].get('prompt_tokens', 0)
+                    total_tokens['completion_tokens'] += entry['token_usage'].get('completion_tokens', 0)
+                    total_tokens['total_tokens'] += entry['token_usage'].get('total_tokens', 0)
+            
             output = {
                 'log': log,
-                'output': final_output
+                'output': final_output,
+                'total_token_usage': total_tokens,
             }
             print(output)
             os.remove(f"./temp/{_id}.pdf")
@@ -1557,7 +1584,7 @@ Respond with a JSON object only (no markdown, no explanation). Write all strengt
 If strengths or weaknesses lists would be empty, use [] or provide at least one item based on the questions.
 Output ONLY valid JSON, nothing else."""
 
-        gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+        gemini_api_key = get_gemini_api_key()
         if gemini_api_key:
             from langchain_google_genai import ChatGoogleGenerativeAI
             from langchain_core.messages import HumanMessage
@@ -1898,24 +1925,44 @@ async def get_all_users_admin(current_user: str = Depends(verify_admin)):
 @app.get("/api/admin/gemini/status")
 async def get_gemini_status(current_user: str = Depends(verify_admin)):
     """Get current Gemini version and status (active/inactive). Admin only."""
-    gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+    gemini_api_key = get_gemini_api_key()
     current_model = get_gemini_model()
     status_val = "inactive"
+    error_message = None
     if gemini_api_key:
         try:
             from langchain_core.messages import HumanMessage
-            gemini = ChatGoogleGenerativeAI(model=current_model, api_key=gemini_api_key)
+            gemini = ChatGoogleGenerativeAI(model=current_model, api_key=gemini_api_key, max_retries=0)
             resp = await gemini.ainvoke([HumanMessage(content="Say OK")])
             if resp and (hasattr(resp, "content") and resp.content):
                 status_val = "active"
-        except Exception:
+        except Exception as e:
             status_val = "inactive"
-    return {"current_version": current_model, "status": status_val}
+            error_msg = str(e)
+            if "no longer available" in error_msg.lower():
+                error_message = f"Model '{current_model}' is no longer available to new users. Please switch to a different model."
+            elif "not found" in error_msg.lower() or "404" in error_msg:
+                error_message = f"Model '{current_model}' not found. It may have been deprecated or removed."
+            elif "permission" in error_msg.lower() or "403" in error_msg:
+                error_message = f"Access denied for model '{current_model}'. Check your API key permissions."
+            elif "quota" in error_msg.lower() or "429" in error_msg:
+                error_message = f"Rate limit exceeded for model '{current_model}'. Try again later."
+            elif "api key" in error_msg.lower() or "invalid" in error_msg.lower():
+                error_message = f"Invalid API key. Please check your Gemini API key configuration."
+            else:
+                error_message = f"Model '{current_model}' is not usable: {error_msg}"
+    else:
+        error_message = "No API key configured. Please set a Gemini API key."
+    
+    response = {"current_version": current_model, "status": status_val}
+    if error_message:
+        response["error"] = error_message
+    return response
 
 @app.get("/api/admin/gemini/models")
 async def get_gemini_models(current_user: str = Depends(verify_admin)):
     """List all Gemini models that support generateContent. Admin only."""
-    gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+    gemini_api_key = get_gemini_api_key()
     if not gemini_api_key:
         return {"models": [], "error": "GOOGLE_API_KEY not configured"}
     try:
@@ -1944,11 +1991,186 @@ async def update_gemini_version(
     request: UpdateGeminiVersionRequest,
     current_user: str = Depends(verify_admin)
 ):
-    """Update selected Gemini model. Admin only."""
+    """Update selected Gemini model. Admin only. Validates the model is usable before saving."""
     if not request.model or not request.model.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model is required")
-    set_gemini_model(request.model.strip())
+    
+    new_model = request.model.strip()
+    gemini_api_key = get_gemini_api_key()
+    
+    if not gemini_api_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured. Please set an API key first.")
+    
+    # Validate the model by making a test call
+    try:
+        from langchain_core.messages import HumanMessage
+        gemini = ChatGoogleGenerativeAI(model=new_model, api_key=gemini_api_key, max_retries=0)
+        resp = await gemini.ainvoke([HumanMessage(content="Say OK")])
+        if not (resp and hasattr(resp, "content") and resp.content):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model '{new_model}' did not return a valid response."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        # Extract meaningful error message
+        if "no longer available" in error_msg.lower():
+            detail = f"Model '{new_model}' is no longer available. Please choose a different model."
+        elif "not found" in error_msg.lower() or "404" in error_msg:
+            detail = f"Model '{new_model}' not found. It may have been deprecated or removed."
+        elif "permission" in error_msg.lower() or "403" in error_msg:
+            detail = f"Access denied for model '{new_model}'. Your API key may not have permission to use this model."
+        elif "quota" in error_msg.lower() or "429" in error_msg:
+            detail = f"Rate limit exceeded while testing model '{new_model}'. Please try again later."
+        else:
+            detail = f"Model '{new_model}' is not usable: {error_msg}"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+    
+    set_gemini_model(new_model)
     return {"success": True, "current_version": get_gemini_model()}
+
+
+@app.get("/api/admin/gemini/role-models")
+async def get_gemini_role_models(current_user: str = Depends(verify_admin)):
+    """Get model configuration for all roles (planner, writer, grader). Admin only."""
+    role_models = get_all_role_models()
+    
+    # Test each role model status
+    gemini_api_key = get_gemini_api_key()
+    status_per_role = {}
+    
+    if gemini_api_key:
+        from langchain_core.messages import HumanMessage
+        for role in VALID_ROLES:
+            model_name = get_model_for_role(role)
+            try:
+                gemini = ChatGoogleGenerativeAI(model=model_name, api_key=gemini_api_key, max_retries=0)
+                resp = await gemini.ainvoke([HumanMessage(content="Say OK")])
+                if resp and hasattr(resp, "content") and resp.content:
+                    status_per_role[role] = "active"
+                else:
+                    status_per_role[role] = "inactive"
+            except Exception as e:
+                status_per_role[role] = "inactive"
+    else:
+        for role in VALID_ROLES:
+            status_per_role[role] = "inactive"
+    
+    return {
+        **role_models,
+        "status_per_role": status_per_role,
+    }
+
+
+@app.put("/api/admin/gemini/role-model")
+async def update_gemini_role_model(
+    request: UpdateGeminiRoleModelRequest,
+    current_user: str = Depends(verify_admin)
+):
+    """Update the model for a specific role. Validates the model before saving. Admin only."""
+    if request.role not in VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role '{request.role}'. Must be one of: {list(VALID_ROLES)}"
+        )
+    
+    if not request.model or not request.model.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model is required")
+    
+    new_model = request.model.strip()
+    gemini_api_key = get_gemini_api_key()
+    
+    if not gemini_api_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured.")
+    
+    # Validate the model
+    try:
+        from langchain_core.messages import HumanMessage
+        gemini = ChatGoogleGenerativeAI(model=new_model, api_key=gemini_api_key, max_retries=0)
+        resp = await gemini.ainvoke([HumanMessage(content="Say OK")])
+        if not (resp and hasattr(resp, "content") and resp.content):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model '{new_model}' did not return a valid response."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        if "no longer available" in error_msg.lower():
+            detail = f"Model '{new_model}' is no longer available."
+        elif "not found" in error_msg.lower() or "404" in error_msg:
+            detail = f"Model '{new_model}' not found."
+        else:
+            detail = f"Model '{new_model}' is not usable: {error_msg}"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+    
+    set_model_for_role(request.role, new_model)
+    return {
+        "success": True,
+        "role": request.role,
+        "model": new_model,
+        "all_models": get_all_role_models(),
+    }
+
+
+@app.get("/api/admin/gemini/api-key")
+async def get_gemini_api_key_status(current_user: str = Depends(verify_admin)):
+    """Get Gemini API key info (masked) and source. Admin only."""
+    api_key = get_gemini_api_key()
+    if api_key:
+        # Mask the key: show first 8 and last 4 chars
+        if len(api_key) > 12:
+            masked = api_key[:8] + "*" * (len(api_key) - 12) + api_key[-4:]
+        else:
+            masked = "*" * len(api_key)
+        # Determine source
+        from gemini_config import _read_config
+        config_data = _read_config()
+        source = "web_config" if config_data.get("api_key") else "env_file"
+        return {"has_key": True, "masked_key": masked, "source": source}
+    return {"has_key": False, "masked_key": "", "source": "none"}
+
+@app.put("/api/admin/gemini/api-key")
+async def update_gemini_api_key_endpoint(
+    request: UpdateGeminiApiKeyRequest,
+    current_user: str = Depends(verify_admin)
+):
+    """Update Gemini API key. Admin only."""
+    if not request.api_key or not request.api_key.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="api_key is required")
+    new_key = request.api_key.strip()
+    # Validate the key by making a simple API call
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={new_key}",
+                timeout=15.0
+            )
+            r.raise_for_status()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid API key: {str(e)}"
+        )
+    set_gemini_api_key(new_key)
+    return {"success": True, "message": "API key updated successfully"}
+
+@app.delete("/api/admin/gemini/api-key")
+async def delete_gemini_api_key_endpoint(current_user: str = Depends(verify_admin)):
+    """Remove custom API key and revert to .env fallback. Admin only."""
+    from gemini_config import _read_config, _write_config, CONFIG_FILE
+    config_data = _read_config()
+    if "api_key" in config_data:
+        del config_data["api_key"]
+        from gemini_config import _ensure_config_dir, CONFIG_FILE as cf
+        _ensure_config_dir()
+        import json as _json
+        with open(cf, "w", encoding="utf-8") as f:
+            _json.dump(config_data, f, indent=2)
+    return {"success": True, "message": "Custom API key removed. Using .env fallback."}
 
 @app.get("/api/admin/courses")
 async def get_all_courses_admin(current_user: str = Depends(verify_admin)):
@@ -2831,7 +3053,7 @@ async def prepare_document_for_agent(
     """
     if not needs_chunking(text):
         return text
-    gemini_api_key = os.environ.get("GOOGLE_API_KEY")
+    gemini_api_key = get_gemini_api_key()
     if not gemini_api_key:
         return text[:80000] + "\n\n[Document truncated - set GOOGLE_API_KEY for full Map-Reduce]"
     gemini = ChatGoogleGenerativeAI(model=get_gemini_model(), api_key=gemini_api_key)
@@ -2873,25 +3095,47 @@ async def process_single_task(task_id: str):
         temp_path = f"./temp/{_id}.pdf"
         
         try:
-            with open(temp_path, "wb") as f:
-                f.write(base64.b64decode(document['document_base64']))
+            # Check if compressed/extracted text is already cached from batch-create
+            # This avoids re-extracting PDF and re-compressing for each of the 3 difficulty tasks
+            fresh_document = db.get_uploaded_document(task['document_id'])
+            cached_text = (fresh_document or {}).get('compressed_text')
             
-            loader = PyPDFLoader(temp_path)
-            docs = loader.lazy_load()
-            text = ""
-            for doc in docs:
-                text += doc.page_content
-            
-            # If document exceeds context window, compress via Map-Reduce chunking
-            def progress_cb(msg: str, pct: int):
-                db.update_background_task(task_id, progress=msg, progress_percent=pct)
-            text = await prepare_document_for_agent(text, progress_callback=progress_cb)
+            if cached_text and len(cached_text) > 100:
+                text = cached_text
+                db.update_background_task(task_id, progress="Using cached document...", progress_percent=25)
+            else:
+                # Fallback: extract PDF and compress (for tasks created before caching was implemented)
+                with open(temp_path, "wb") as f:
+                    f.write(base64.b64decode(document['document_base64']))
+                
+                loader = PyPDFLoader(temp_path)
+                docs = loader.lazy_load()
+                text = ""
+                for doc in docs:
+                    text += doc.page_content
+                
+                # Compress if needed
+                def progress_cb(msg: str, pct: int):
+                    db.update_background_task(task_id, progress=msg, progress_percent=pct)
+                text = await prepare_document_for_agent(text, progress_callback=progress_cb)
+                
+                # Cache for any remaining sibling tasks
+                try:
+                    db.update_uploaded_document(task['document_id'], compressed_text=text)
+                except Exception as cache_err:
+                    print(f"Warning: Failed to cache compressed text: {cache_err}")
             
             db.update_background_task(task_id, progress="Generating course content...", progress_percent=30)
             
-            # Generate course using AI
+            # Generate course using AI with granular progress reporting
             course_creator = CreateCourse()
-            result = await course_creator.create_course(text, task['difficulty_level'])
+            
+            def course_progress_cb(msg: str, pct: int):
+                db.update_background_task(task_id, progress=msg, progress_percent=pct)
+            
+            result = await course_creator.create_course(
+                text, task['difficulty_level'], progress_callback=course_progress_cb
+            )
             
             db.update_background_task(task_id, progress="Processing AI response...", progress_percent=80)
             
@@ -2900,15 +3144,29 @@ async def process_single_task(task_id: str):
             for i in result.messages:
                 if i.source == "Expert_Agent":
                     final_output = i.content.dict()
-                    log.append({'agent': i.source, 'content': final_output})
+                    log_entry = {'agent': i.source, 'content': final_output}
                 else:
-                    log.append({'agent': i.source, 'content': i.content})
+                    log_entry = {'agent': i.source, 'content': i.content}
+                if hasattr(i, 'stage') and i.stage:
+                    log_entry['stage'] = i.stage
+                if hasattr(i, 'token_usage') and i.token_usage:
+                    log_entry['token_usage'] = i.token_usage
+                log.append(log_entry)
             
             if final_output:
+                # Calculate total token usage across all agents
+                total_tokens = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+                for entry in log:
+                    if entry.get('token_usage'):
+                        total_tokens['prompt_tokens'] += entry['token_usage'].get('prompt_tokens', 0)
+                        total_tokens['completion_tokens'] += entry['token_usage'].get('completion_tokens', 0)
+                        total_tokens['total_tokens'] += entry['token_usage'].get('total_tokens', 0)
+                
                 output = {
                     'success': True,
                     'output': final_output,
                     'log': log,
+                    'total_token_usage': total_tokens,
                     'quiz_params': task.get('quiz_params', {})
                 }
                 db.update_background_task(
@@ -3089,6 +3347,24 @@ async def create_batch_tasks(request: BatchCourseUploadRequest, current_user: st
         
         if not doc_success:
             raise HTTPException(status_code=500, detail=f"Failed to store document: {doc_result}")
+        
+        # Pre-compress document ONCE here so all 3 tasks can reuse it (cost optimization)
+        try:
+            _id = uuid.uuid4()
+            temp_path = f"./temp/{_id}.pdf"
+            with open(temp_path, "wb") as f:
+                f.write(base64.b64decode(request.DocumentBased64))
+            loader = PyPDFLoader(temp_path)
+            docs = loader.lazy_load()
+            raw_text = ""
+            for doc in docs:
+                raw_text += doc.page_content
+            os.remove(temp_path)
+            
+            compressed_text = await prepare_document_for_agent(raw_text)
+            db.update_uploaded_document(document_id, compressed_text=compressed_text)
+        except Exception as compress_err:
+            print(f"Warning: Pre-compression failed, tasks will compress individually: {compress_err}")
         
         # Create a task for each difficulty level
         for difficulty in difficulty_levels:

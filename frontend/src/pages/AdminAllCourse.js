@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import Header from '../components/Header';
+import AgentFlowDiagram from '../components/AgentFlowDiagram';
 import { API_BASE_URL } from '../config/api';
 import './AdminHomePage.css';
 
@@ -66,6 +67,31 @@ const LessonExpander = ({
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratedData, setRegeneratedData] = useState(null);
   const [showPreviewChanges, setShowPreviewChanges] = useState(false);
+
+  // Fix markdown content that has headings without preceding newlines
+  // Also converts standalone bold lines (likely intended as headings) to proper ## headings
+  const fixMarkdownHeadings = (text) => {
+    if (!text) return '';
+    let fixed = text;
+    
+    // Convert standalone bold lines to headings (AI sometimes uses **Title** instead of ## Title)
+    // Pattern: line that is ONLY bold text (possibly with whitespace), treat as heading
+    fixed = fixed.replace(/^(\s*)\*\*([^*\n]+)\*\*\s*$/gm, (match, indent, content) => {
+      // Only convert if it looks like a heading (short text, no punctuation at end suggesting a sentence)
+      const trimmed = content.trim();
+      if (trimmed.length < 80 && !trimmed.endsWith('.') && !trimmed.endsWith(',')) {
+        return `${indent}## ${trimmed}`;
+      }
+      return match; // Keep as bold if it looks like a sentence
+    });
+    
+    // Ensure headings (##, ###, ####) always start on a new line with a blank line before
+    fixed = fixed
+      .replace(/([^\n])(#{1,6}\s)/g, '$1\n\n$2')  // Add \n\n before # if not already on new line
+      .replace(/\n(#{1,6}\s)/g, '\n\n$1');          // Ensure blank line before # on new lines
+    
+    return fixed;
+  };
 
   const markdownComponents = {
     h1: ({children}) => <h1 className="title is-3 mt-5 mb-3">{children}</h1>,
@@ -389,7 +415,7 @@ const LessonExpander = ({
                           rehypePlugins={[rehypeRaw]}
                           components={markdownComponents}
                         >
-                          {contentItem.content || ''}
+                          {fixMarkdownHeadings(contentItem.content || '')}
                         </ReactMarkdown>
                       </div>
                     </div>
@@ -419,34 +445,36 @@ const LessonExpander = ({
   );
 };
 
+
 // LogCard Component
 const LogCard = ({ logEntry, index }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const getAgentIcon = (agentName) => {
-    switch (agentName?.toLowerCase()) {
-      case 'user':
-        return 'fas fa-user';
-      case 'expert_agent':
-        return 'fas fa-brain';
-      case 'validator_agent':
-        return 'fas fa-check-circle';
-      default:
-        return 'fas fa-robot';
-    }
+    const name = agentName?.toLowerCase() || '';
+    if (name === 'user') return 'fas fa-user';
+    if (name === 'expert_agent') return 'fas fa-brain';
+    if (name === 'validator_agent') return 'fas fa-check-circle';
+    if (name === 'planner_agent') return 'fas fa-sitemap';
+    if (name === 'outline_reviewer') return 'fas fa-clipboard-check';
+    if (name.includes('lesson_writer') || name.includes('question_writer')) return 'fas fa-pen-fancy';
+    if (name.includes('lesson_reviewer') || name.includes('question_reviewer')) return 'fas fa-check-double';
+    if (name === 'quiz_planner') return 'fas fa-project-diagram';
+    if (name === 'assembler') return 'fas fa-puzzle-piece';
+    return 'fas fa-robot';
   };
 
   const getAgentColor = (agentName) => {
-    switch (agentName?.toLowerCase()) {
-      case 'user':
-        return 'is-info';
-      case 'expert_agent':
-        return 'is-primary';
-      case 'validator_agent':
-        return 'is-success';
-      default:
-        return 'is-warning';
-    }
+    const name = agentName?.toLowerCase() || '';
+    if (name === 'user') return 'is-info';
+    if (name === 'expert_agent') return 'is-primary';
+    if (name === 'validator_agent') return 'is-success';
+    if (name === 'planner_agent' || name === 'quiz_planner') return 'is-link';
+    if (name === 'outline_reviewer') return 'is-info';
+    if (name.includes('writer')) return 'is-primary';
+    if (name.includes('reviewer')) return 'is-success';
+    if (name === 'assembler') return 'is-warning';
+    return 'is-warning';
   };
 
   const formatLogContent = (content) => {
@@ -494,6 +522,15 @@ const LogCard = ({ logEntry, index }) => {
                   <i className="fas fa-text-height"></i>
                 </span>
                 {formatLogContent(logEntry.content).length} characters
+                {logEntry.token_usage && logEntry.token_usage.total_tokens > 0 && (
+                  <>
+                    <span className="mx-2">•</span>
+                    <span className="icon is-small mr-1">
+                      <i className="fas fa-coins" style={{ color: '#d97706' }}></i>
+                    </span>
+                    <span style={{ color: '#d97706' }}>{logEntry.token_usage.total_tokens.toLocaleString()} tokens</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -885,6 +922,11 @@ function AdminAllCourse() {
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [taskStats, setTaskStats] = useState({ pending: 0, generating: 0, done: 0, generated: 0, error: 0 });
   
+  // Token usage filter state
+  const [tokenDateFilter, setTokenDateFilter] = useState('last7'); // 'today', 'last3', 'last7', 'last30', 'custom'
+  const [tokenCustomStart, setTokenCustomStart] = useState('');
+  const [tokenCustomEnd, setTokenCustomEnd] = useState('');
+  
   // Toast notification state
   const [toasts, setToasts] = useState([]);
   const [previousTaskStatuses, setPreviousTaskStatuses] = useState({});
@@ -1046,6 +1088,10 @@ function AdminAllCourse() {
       showAlert(`Total question types (${totalQuestionTypes}) cannot exceed total questions (${totalQuestions})`, 'warning');
       return false;
     }
+    if (totalQuestionTypes !== totalQuestions) {
+      showAlert(`Sum of question types (MC: ${choices} + Subjective: ${subjective} + Fill: ${fillInBlank} = ${totalQuestionTypes}) should equal Total Questions (${totalQuestions}). Adjusting total to ${totalQuestionTypes}.`, 'info');
+      setNumberOfQuestions(totalQuestionTypes);
+    }
     return true;
   };
 
@@ -1165,6 +1211,20 @@ function AdminAllCourse() {
             }
           };
           setPreviewDocumentName(taskData.document_name);
+          // Ensure total_token_usage exists (compute from log entries if missing for backward compat)
+          if (!resultWithDefaultName.total_token_usage && resultWithDefaultName.log) {
+            const totalTokens = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+            resultWithDefaultName.log.forEach(entry => {
+              if (entry.token_usage) {
+                totalTokens.prompt_tokens += entry.token_usage.prompt_tokens || 0;
+                totalTokens.completion_tokens += entry.token_usage.completion_tokens || 0;
+                totalTokens.total_tokens += entry.token_usage.total_tokens || 0;
+              }
+            });
+            if (totalTokens.total_tokens > 0) {
+              resultWithDefaultName.total_token_usage = totalTokens;
+            }
+          }
           setPreviewData(resultWithDefaultName);
           setCourseParams(taskData.result_data.quiz_params || taskData.quiz_params);
           setDocumentBase64(taskData.document_base64);
@@ -1268,7 +1328,10 @@ function AdminAllCourse() {
                 >
                   {task.progress_percent}%
                 </progress>
-                <span className="is-size-7 has-text-grey">{task.progress}</span>
+                <span className="is-size-7 has-text-grey">
+                  {task.progress}
+                  {task.progress_percent > 0 && ` (${task.progress_percent}%)`}
+                </span>
               </div>
             )}
           </div>
@@ -1728,6 +1791,34 @@ function AdminAllCourse() {
                     <span>Agent Logs</span>
                   </a>
                 </li>
+                <li className={activeTab === 'diagram' ? 'is-active' : ''}>
+                  <a 
+                    onClick={() => setActiveTab('diagram')}
+                    style={{ 
+                      color: activeTab === 'diagram' ? 'var(--primary-black)' : 'white',
+                      backgroundColor: activeTab === 'diagram' ? 'white' : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'diagram') {
+                        e.target.style.color = 'var(--primary-yellow)';
+                        e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'diagram') {
+                        e.target.style.color = 'white';
+                        e.target.style.backgroundColor = 'transparent';
+                      }
+                    }}
+                  >
+                    <span className="icon is-small">
+                      <i className="fas fa-project-diagram"></i>
+                    </span>
+                    <span>Agent Diagram</span>
+                  </a>
+                </li>
               </ul>
             </div>
 
@@ -1831,9 +1922,71 @@ function AdminAllCourse() {
                   <p className="subtitle is-6 has-text-grey mb-4">
                     View the step-by-step processing logs from the AI agents
                   </p>
-                  {previewData.log?.map((logEntry, index) => (
-                    <LogCard key={index} logEntry={logEntry} index={index} />
-                  ))}
+                  {previewData.total_token_usage && previewData.total_token_usage.total_tokens > 0 && (
+                    <div className="notification is-light mb-4" style={{ padding: '0.75rem 1rem', borderLeft: '4px solid #d97706' }}>
+                      <div className="is-flex is-align-items-center is-flex-wrap-wrap" style={{ gap: '1rem' }}>
+                        <span className="has-text-weight-bold" style={{ fontSize: '0.85rem' }}>
+                          <i className="fas fa-coins mr-2" style={{ color: '#d97706' }}></i>
+                          Token Usage Summary
+                        </span>
+                        <span className="is-size-7 has-text-grey">
+                          Prompt: <strong className="has-text-link">{previewData.total_token_usage.prompt_tokens?.toLocaleString()}</strong>
+                        </span>
+                        <span className="is-size-7 has-text-grey">
+                          Completion: <strong className="has-text-success">{previewData.total_token_usage.completion_tokens?.toLocaleString()}</strong>
+                        </span>
+                        <span className="has-text-weight-bold" style={{ fontSize: '0.9rem', marginLeft: 'auto' }}>
+                          Total: {previewData.total_token_usage.total_tokens?.toLocaleString()} tokens
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {(() => {
+                    const logs = previewData.log || [];
+                    // Group by stage if stage info available (new pipeline)
+                    const stages = {};
+                    let hasStages = false;
+                    logs.forEach((entry, idx) => {
+                      const stage = entry.stage || 'general';
+                      if (entry.stage) hasStages = true;
+                      if (!stages[stage]) stages[stage] = [];
+                      stages[stage].push({ ...entry, _idx: idx });
+                    });
+                    
+                    if (hasStages) {
+                      const stageOrder = ['planning', 'writing', 'assembly', 'general'];
+                      const stageLabels = { planning: 'Planning', writing: 'Lesson Writing (Parallel)', assembly: 'Assembly', general: 'General' };
+                      const stageIcons = { planning: 'fas fa-sitemap', writing: 'fas fa-pen-fancy', assembly: 'fas fa-puzzle-piece', general: 'fas fa-robot' };
+                      return stageOrder.filter(s => stages[s]).map(stage => (
+                        <div key={stage} className="mb-4">
+                          <div className="is-flex is-align-items-center mb-2">
+                            <span className="icon mr-2"><i className={stageIcons[stage]}></i></span>
+                            <span className="has-text-weight-bold">Stage: {stageLabels[stage]}</span>
+                            <span className="tag is-light ml-2">{stages[stage].length} entries</span>
+                          </div>
+                          {stages[stage].map((logEntry) => (
+                            <LogCard key={logEntry._idx} logEntry={logEntry} index={logEntry._idx} />
+                          ))}
+                        </div>
+                      ));
+                    }
+                    // Fallback: flat display (legacy)
+                    return logs.map((logEntry, index) => (
+                      <LogCard key={index} logEntry={logEntry} index={index} />
+                    ));
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'diagram' && (
+              <div className="content">
+                <div className="field">
+                  <label className="label">Agent Pipeline Flow</label>
+                  <p className="subtitle is-6 has-text-grey mb-4">
+                    Visual overview of the multi-agent pipeline. Click on any agent to see its details.
+                  </p>
+                  <AgentFlowDiagram logs={previewData.log} type="course" totalTokenUsage={previewData.total_token_usage} />
                 </div>
               </div>
             )}
@@ -1960,6 +2113,34 @@ function AdminAllCourse() {
                     <span>Agent Logs</span>
                   </a>
                 </li>
+                <li className={activeQuizTab === 'diagram' ? 'is-active' : ''}>
+                  <a 
+                    onClick={() => setActiveQuizTab('diagram')}
+                    style={{ 
+                      color: activeQuizTab === 'diagram' ? 'var(--primary-black)' : 'white',
+                      backgroundColor: activeQuizTab === 'diagram' ? 'white' : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeQuizTab !== 'diagram') {
+                        e.target.style.color = 'var(--primary-yellow)';
+                        e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeQuizTab !== 'diagram') {
+                        e.target.style.color = 'white';
+                        e.target.style.backgroundColor = 'transparent';
+                      }
+                    }}
+                  >
+                    <span className="icon is-small">
+                      <i className="fas fa-project-diagram"></i>
+                    </span>
+                    <span>Agent Diagram</span>
+                  </a>
+                </li>
               </ul>
             </div>
 
@@ -2031,9 +2212,69 @@ function AdminAllCourse() {
                   <p className="subtitle is-6 has-text-grey mb-4">
                     View the step-by-step processing logs from the AI agents
                   </p>
-                  {quizPreviewData.log?.map((logEntry, index) => (
-                    <LogCard key={index} logEntry={logEntry} index={index} />
-                  ))}
+                  {quizPreviewData.total_token_usage && quizPreviewData.total_token_usage.total_tokens > 0 && (
+                    <div className="notification is-light mb-4" style={{ padding: '0.75rem 1rem', borderLeft: '4px solid #d97706' }}>
+                      <div className="is-flex is-align-items-center is-flex-wrap-wrap" style={{ gap: '1rem' }}>
+                        <span className="has-text-weight-bold" style={{ fontSize: '0.85rem' }}>
+                          <i className="fas fa-coins mr-2" style={{ color: '#d97706' }}></i>
+                          Token Usage Summary
+                        </span>
+                        <span className="is-size-7 has-text-grey">
+                          Prompt: <strong className="has-text-link">{quizPreviewData.total_token_usage.prompt_tokens?.toLocaleString()}</strong>
+                        </span>
+                        <span className="is-size-7 has-text-grey">
+                          Completion: <strong className="has-text-success">{quizPreviewData.total_token_usage.completion_tokens?.toLocaleString()}</strong>
+                        </span>
+                        <span className="has-text-weight-bold" style={{ fontSize: '0.9rem', marginLeft: 'auto' }}>
+                          Total: {quizPreviewData.total_token_usage.total_tokens?.toLocaleString()} tokens
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {(() => {
+                    const logs = quizPreviewData.log || [];
+                    const stages = {};
+                    let hasStages = false;
+                    logs.forEach((entry, idx) => {
+                      const stage = entry.stage || 'general';
+                      if (entry.stage) hasStages = true;
+                      if (!stages[stage]) stages[stage] = [];
+                      stages[stage].push({ ...entry, _idx: idx });
+                    });
+                    
+                    if (hasStages) {
+                      const stageOrder = ['planning', 'writing', 'assembly', 'general'];
+                      const stageLabels = { planning: 'Planning', writing: 'Question Writing (Parallel)', assembly: 'Assembly', general: 'General' };
+                      const stageIcons = { planning: 'fas fa-project-diagram', writing: 'fas fa-pen-fancy', assembly: 'fas fa-puzzle-piece', general: 'fas fa-robot' };
+                      return stageOrder.filter(s => stages[s]).map(stage => (
+                        <div key={stage} className="mb-4">
+                          <div className="is-flex is-align-items-center mb-2">
+                            <span className="icon mr-2"><i className={stageIcons[stage]}></i></span>
+                            <span className="has-text-weight-bold">Stage: {stageLabels[stage]}</span>
+                            <span className="tag is-light ml-2">{stages[stage].length} entries</span>
+                          </div>
+                          {stages[stage].map((logEntry) => (
+                            <LogCard key={logEntry._idx} logEntry={logEntry} index={logEntry._idx} />
+                          ))}
+                        </div>
+                      ));
+                    }
+                    return logs.map((logEntry, index) => (
+                      <LogCard key={index} logEntry={logEntry} index={index} />
+                    ));
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {activeQuizTab === 'diagram' && (
+              <div className="content">
+                <div className="field">
+                  <label className="label">Agent Pipeline Flow</label>
+                  <p className="subtitle is-6 has-text-grey mb-4">
+                    Visual overview of the multi-agent pipeline. Click on any agent to see its details.
+                  </p>
+                  <AgentFlowDiagram logs={quizPreviewData.log} type="quiz" totalTokenUsage={quizPreviewData.total_token_usage} />
                 </div>
               </div>
             )}
@@ -2324,6 +2565,166 @@ function AdminAllCourse() {
                 </div>
               </div>
             </div>
+
+            {/* Token Usage Summary Card */}
+            {(() => {
+              // Filter tasks by date range
+              const getDateThreshold = () => {
+                const now = new Date();
+                switch (tokenDateFilter) {
+                  case 'today':
+                    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                  case 'last3':
+                    return new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+                  case 'last7':
+                    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                  case 'last30':
+                    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                  case 'custom':
+                    return tokenCustomStart ? new Date(tokenCustomStart) : new Date(0);
+                  default:
+                    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                }
+              };
+              const getEndDate = () => {
+                if (tokenDateFilter === 'custom' && tokenCustomEnd) {
+                  const d = new Date(tokenCustomEnd);
+                  d.setHours(23, 59, 59, 999);
+                  return d;
+                }
+                return new Date();
+              };
+
+              const threshold = getDateThreshold();
+              const endDate = getEndDate();
+
+              const filteredTasks = backgroundTasks.filter(t => {
+                const taskDate = new Date(t.created_at);
+                return taskDate >= threshold && taskDate <= endDate;
+              });
+
+              // Compute total tokens from filtered tasks
+              let totalPrompt = 0, totalCompletion = 0, totalTokens = 0;
+              let coursesWithTokens = 0;
+              const perCourseTokens = [];
+
+              filteredTasks.forEach(task => {
+                let taskTokens = 0;
+                if (task.result_data && task.result_data.total_token_usage) {
+                  const u = task.result_data.total_token_usage;
+                  totalPrompt += u.prompt_tokens || 0;
+                  totalCompletion += u.completion_tokens || 0;
+                  totalTokens += u.total_tokens || 0;
+                  taskTokens = u.total_tokens || 0;
+                } else if (task.result_data && task.result_data.log) {
+                  // Fallback: compute from log entries
+                  task.result_data.log.forEach(entry => {
+                    if (entry.token_usage) {
+                      totalPrompt += entry.token_usage.prompt_tokens || 0;
+                      totalCompletion += entry.token_usage.completion_tokens || 0;
+                      totalTokens += entry.token_usage.total_tokens || 0;
+                      taskTokens += entry.token_usage.total_tokens || 0;
+                    }
+                  });
+                }
+                if (taskTokens > 0) {
+                  coursesWithTokens++;
+                  perCourseTokens.push(taskTokens);
+                }
+              });
+
+              const avgPerCourse = coursesWithTokens > 0 ? Math.round(totalTokens / coursesWithTokens) : 0;
+
+              return (
+                <div className="notification mb-4" style={{ padding: '1rem 1.25rem', borderLeft: '4px solid #d97706', backgroundColor: '#fffbeb' }}>
+                  <div className="is-flex is-justify-content-space-between is-align-items-center is-flex-wrap-wrap" style={{ gap: '0.75rem' }}>
+                    <div className="is-flex is-align-items-center" style={{ gap: '0.5rem' }}>
+                      <span className="icon" style={{ color: '#d97706' }}>
+                        <i className="fas fa-coins"></i>
+                      </span>
+                      <span className="has-text-weight-bold" style={{ fontSize: '0.95rem' }}>
+                        Token Usage Summary
+                      </span>
+                    </div>
+                    {/* Date Filter */}
+                    <div className="is-flex is-align-items-center is-flex-wrap-wrap" style={{ gap: '0.5rem' }}>
+                      <div className="buttons has-addons are-small mb-0">
+                        {[
+                          { key: 'today', label: 'Today' },
+                          { key: 'last3', label: '3 Days' },
+                          { key: 'last7', label: '7 Days' },
+                          { key: 'last30', label: '30 Days' },
+                          { key: 'custom', label: 'Custom' },
+                        ].map(opt => (
+                          <button
+                            key={opt.key}
+                            className={`button is-small ${tokenDateFilter === opt.key ? 'is-warning' : 'is-light'}`}
+                            onClick={() => setTokenDateFilter(opt.key)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      {tokenDateFilter === 'custom' && (
+                        <div className="is-flex is-align-items-center" style={{ gap: '0.25rem' }}>
+                          <input
+                            type="date"
+                            className="input is-small"
+                            style={{ width: '140px' }}
+                            value={tokenCustomStart}
+                            onChange={(e) => setTokenCustomStart(e.target.value)}
+                          />
+                          <span className="is-size-7">to</span>
+                          <input
+                            type="date"
+                            className="input is-small"
+                            style={{ width: '140px' }}
+                            value={tokenCustomEnd}
+                            onChange={(e) => setTokenCustomEnd(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Token Stats */}
+                  <div className="columns is-multiline mt-3 mb-0">
+                    <div className="column is-3">
+                      <div style={{ textAlign: 'center' }}>
+                        <p className="heading mb-1" style={{ fontSize: '0.7rem' }}>Total Tokens</p>
+                        <p className="has-text-weight-bold" style={{ fontSize: '1.4rem', color: '#d97706' }}>
+                          {totalTokens.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="column is-3">
+                      <div style={{ textAlign: 'center' }}>
+                        <p className="heading mb-1" style={{ fontSize: '0.7rem' }}>Prompt Tokens</p>
+                        <p className="has-text-weight-bold" style={{ fontSize: '1.4rem', color: '#3273dc' }}>
+                          {totalPrompt.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="column is-3">
+                      <div style={{ textAlign: 'center' }}>
+                        <p className="heading mb-1" style={{ fontSize: '0.7rem' }}>Completion Tokens</p>
+                        <p className="has-text-weight-bold" style={{ fontSize: '1.4rem', color: '#48c774' }}>
+                          {totalCompletion.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="column is-3">
+                      <div style={{ textAlign: 'center' }}>
+                        <p className="heading mb-1" style={{ fontSize: '0.7rem' }}>Avg / Course</p>
+                        <p className="has-text-weight-bold" style={{ fontSize: '1.4rem', color: '#363636' }}>
+                          {avgPerCourse.toLocaleString()}
+                        </p>
+                        <p className="is-size-7 has-text-grey">({coursesWithTokens} courses)</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             
             {loadingTasks && backgroundTasks.length === 0 ? (
               <div className="has-text-centered py-6">
@@ -2354,6 +2755,7 @@ function AdminAllCourse() {
                       <th>Difficulty</th>
                       <th style={{ width: '200px' }}>Status</th>
                       <th>Created</th>
+                      <th>Tokens</th>
                       <th style={{ width: '180px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -2378,6 +2780,26 @@ function AdminAllCourse() {
                               {new Date(task.created_at).toLocaleTimeString()}
                             </span>
                           </span>
+                        </td>
+                        <td>
+                          {(() => {
+                            let tokens = 0;
+                            if (task.result_data && task.result_data.total_token_usage) {
+                              tokens = task.result_data.total_token_usage.total_tokens || 0;
+                            } else if (task.result_data && task.result_data.log) {
+                              task.result_data.log.forEach(entry => {
+                                if (entry.token_usage) tokens += entry.token_usage.total_tokens || 0;
+                              });
+                            }
+                            return tokens > 0 ? (
+                              <span className="is-size-7" style={{ color: '#d97706' }}>
+                                <i className="fas fa-coins mr-1"></i>
+                                {tokens.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="is-size-7 has-text-grey">—</span>
+                            );
+                          })()}
                         </td>
                         <td>
                           <div className="buttons are-small">

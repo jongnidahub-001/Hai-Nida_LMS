@@ -136,7 +136,16 @@ def html_to_docx(html_content, output_file, input_file_path):
         
         # ตาราง
         elif tag == 'table':
-            table = doc.add_table(rows=0, cols=0)
+            # หาจำนวนคอลัมน์จาก header หรือ row แรก
+            num_cols = 0
+            first_row = element.find('tr')
+            if first_row:
+                num_cols = len(first_row.find_all(['th', 'td']))
+            
+            if num_cols == 0:
+                return None
+            
+            table = doc.add_table(rows=0, cols=num_cols)
             table.style = 'Light Grid Accent 1'
             
             # หา header
@@ -146,11 +155,10 @@ def html_to_docx(html_content, output_file, input_file_path):
                 if header_row:
                     cells = header_row.find_all(['th', 'td'])
                     if cells:
-                        table.add_row()
+                        row = table.add_row()
                         for i, cell in enumerate(cells):
-                            if i == 0:
-                                table.columns[i].width = Inches(1.5)
-                            table.rows[0].cells[i].text = cell.get_text().strip()
+                            if i < num_cols:
+                                row.cells[i].text = cell.get_text().strip()
             
             # หา body
             tbody = element.find('tbody') or element
@@ -161,7 +169,7 @@ def html_to_docx(html_content, output_file, input_file_path):
                 if cells:
                     row = table.add_row()
                     for i, cell in enumerate(cells):
-                        if i < len(row.cells):
+                        if i < num_cols:
                             row.cells[i].text = cell.get_text().strip()
             return None
         
