@@ -175,4 +175,4 @@ gcloud compute scp <ชื่อไฟล์> hai-nida:/tmp/ --zone asia-southea
 
 การยกเลิกการเข้าถึง: ลบ deploy key ของ project นั้นออกจาก Settings > Deploy keys และลบ collaborator ระบบที่ติดตั้งแล้วจะยังทำงานต่อได้ แต่จะไม่ได้รับเวอร์ชันใหม่
 
-workflow `.github/workflows/deploy.yml` ใช้ deploy ระบบของทีมพัฒนาเองเมื่อ push เข้า `main` ไม่เกี่ยวกับระบบของลูกค้า เอกสาร deploy แบบเดิมย้ายไปที่ `docs/legacy/`
+workflow `.github/workflows/deploy.yml` ใช้ deploy ระบบของทีมพัฒนาเองเมื่อ push เข้า `main` ไม่เกี่ยวกับระบบของลูกค้า

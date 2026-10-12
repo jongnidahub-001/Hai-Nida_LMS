@@ -53,11 +53,11 @@ python md_to_docx.py input.md --output output.docx
 ## ตัวอย่างการใช้งาน
 
 ```bash
-# แปลง USER_MANUAL.md เป็น USER_MANUAL.docx
-python md_to_docx.py USER_MANUAL.md
-
-# แปลงและระบุชื่อไฟล์ output
+# สร้างคู่มือผู้ใช้ฉบับ Word จาก USER_MANUAL.md
 python md_to_docx.py USER_MANUAL.md -o คู่มือการใช้งาน.docx
+
+# สร้างคู่มือติดตั้งฉบับ Word จาก DEPLOY.md
+python md_to_docx.py DEPLOY.md -o คู่มือการติดตั้งและดูแลระบบ.docx
 ```
 
 ## ฟีเจอร์ที่รองรับ
