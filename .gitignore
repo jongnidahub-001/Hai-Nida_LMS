@@ -36,3 +36,6 @@ __pycache__/
 backend/crew_output.json
 backend/agent/create_course/response.json
 backend/agent/create_course/test.ipynb
+
+# ค่าที่ใช้กับ scripts/bootstrap-gcp.sh อาจมี API key
+deploy.env
