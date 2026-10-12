@@ -10,13 +10,13 @@ from typing import Literal
 
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 CONFIG_FILE = CONFIG_DIR / "gemini_settings.json"
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_MODEL = "gemini-3.5-flash"
 
 # Default models per role
 DEFAULT_MODELS = {
-    "planner": "gemini-2.5-flash-lite",
-    "writer": "gemini-2.5-flash-lite",
-    "grader": "gemini-2.5-flash-lite",
+    "planner": "gemini-3.5-flash",
+    "writer": "gemini-3.5-flash",
+    "grader": "gemini-3.5-flash",
 }
 
 # Valid role names

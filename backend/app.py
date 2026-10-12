@@ -2024,6 +2024,8 @@ async def update_gemini_version(
             detail = f"Model '{new_model}' not found. It may have been deprecated or removed."
         elif "permission" in error_msg.lower() or "403" in error_msg:
             detail = f"Access denied for model '{new_model}'. Your API key may not have permission to use this model."
+        elif "402" in error_msg or "payment required" in error_msg.lower():
+            detail = "Gemini API credits are exhausted (402 Payment Required). Add prepaid credits at aistudio.google.com/billing."
         elif "quota" in error_msg.lower() or "429" in error_msg:
             detail = f"Rate limit exceeded while testing model '{new_model}'. Please try again later."
         else:

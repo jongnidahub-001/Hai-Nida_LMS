@@ -11,6 +11,18 @@ VM ดึงโค้ดจาก branch `release` ของ repo เองท�
 1. Google Cloud project ที่ผูก billing account แล้ว และบัญชีของผู้ติดตั้งมีบทบาท Owner ใน project นั้น (หรือ Editor ร่วมกับ Security Admin และ Secret Manager Admin)
 2. บัญชี GitHub ที่รับคำเชิญเข้า repo นี้แล้ว
 3. Cloud Shell ใน Google Cloud Console (มี `gcloud` และ `git` พร้อมใช้) หรือเครื่องที่ติดตั้ง Google Cloud CLI แล้ว
+4. เครดิต Gemini API แบบเติมเงินล่วงหน้า (Prepay) ของ project เดียวกัน ตามขั้นตอนด้านล่าง
+
+### เตรียมเครดิต Gemini API (Prepay)
+
+Gemini API คิดเงินแบบเติมเครดิตล่วงหน้า บัญชีใหม่จะได้แผน Prepay เป็นค่าตั้งต้น ถ้า project ไม่มีเครดิต ระบบจะติดตั้งได้แต่สร้างคอร์สและแบบทดสอบไม่ได้ ทำขั้นตอนนี้ก่อนหรือหลังรัน bootstrap ก็ได้ แต่ต้องเป็น project เดียวกับที่ติดตั้งระบบ เพราะ API key ที่ bootstrap สร้างจะใช้สถานะการเรียกเก็บเงินของ project นั้น
+
+1. เปิด https://aistudio.google.com/projects ด้วยบัญชีที่เป็น Owner ของ project
+2. ที่แถวของ project ในคอลัมน์ Billing Tier กด Set up billing (หรือ Set up Prepay ถ้า project ผูก billing account ไว้แล้ว) แล้วเลือก billing account
+3. ซื้อเครดิตที่ https://aistudio.google.com/billing ด้วยปุ่ม Buy credits ขั้นต่ำ 5 USD
+4. แนะนำให้เปิดเติมเงินอัตโนมัติด้วยปุ่ม Setup auto-reload ในการ์ด Available credits และกำหนด Monthly Limit เพื่อคุมค่าใช้จ่าย
+
+เครดิตมีอายุ 12 เดือนนับจากวันซื้อและขอคืนไม่ได้ เมื่อเครดิตเหลือ 0 API key ทุกตัวใน billing account นั้นจะหยุดทำงานทันที (ระบบได้ error 402 Payment Required) จนกว่าจะเติมเครดิต จึงควรตรวจยอดคงเหลือเป็นระยะหรือเปิด auto-reload ไว้ ขั้นตอนนี้อ้างอิงจาก[เอกสาร Billing ของ Gemini API](https://ai.google.dev/gemini-api/docs/billing) ณ ตุลาคม 2026 ชื่อปุ่มและหน้าจออาจเปลี่ยนได้
 
 ## 2. ติดตั้งครั้งแรก
 
@@ -153,7 +165,7 @@ gcloud compute scp <ชื่อไฟล์> hai-nida:/tmp/ --zone asia-southea
 | Snapshot, bucket backup, Secret Manager | ต่ำกว่า 2 ในการใช้งานปกติ |
 | รวม | ประมาณ 40 |
 
-ค่า Gemini API คิดตามปริมาณการใช้งานจริง ไม่รวมในตารางนี้ ตรวจได้ที่หน้า Billing ของ project
+ค่า Gemini API ไม่รวมในตารางนี้ ตัดจากเครดิต Prepay ตามปริมาณการใช้งานจริง (เติมขั้นต่ำครั้งละ 5 USD) ดูยอดคงเหลือและการใช้งานได้ที่ https://aistudio.google.com/billing
 
 ## 9. การแก้ปัญหาที่พบบ่อย
 
@@ -169,7 +181,7 @@ gcloud compute scp <ชื่อไฟล์> hai-nida:/tmp/ --zone asia-southea
 
 ถ้า HTTPS ไม่ทำงานหลังตั้งโดเมน ให้ตรวจว่า DNS ชี้ไปที่ static IP แล้ว (`dig +short lms.example.com`) และไม่มี proxy ขวางที่ port 80 และ 443 ดู log ของ Caddy ด้วย `sudo docker compose -f docker-compose.prod.yml logs caddy`
 
-ถ้าระบบสร้างคอร์สไม่ได้ มักเกิดจาก Gemini API key ใช้ไม่ได้หรือเกินโควตา ตรวจ key ในหน้า Admin > Settings หรือเปลี่ยนด้วย `rotate-secret.sh google-api-key`
+ถ้าระบบสร้างคอร์สไม่ได้ ให้ตรวจเครดิต Gemini API ที่ https://aistudio.google.com/billing ก่อน ถ้า error เป็น 402 Payment Required แปลว่าเครดิตหมดหรือยังไม่ได้ตั้งค่า Prepay ให้เติมเครดิตตามหัวข้อที่ 1 ถ้าเครดิตยังมี อาจเกิดจาก API key ใช้ไม่ได้หรือเกิน rate limit ตรวจ key ในหน้า Admin > Settings หรือเปลี่ยนด้วย `rotate-secret.sh google-api-key`
 
 ถ้า disk เต็ม ระบบลบ Docker image เก่าหลังอัปเดตทุกครั้งอยู่แล้ว ถ้ายังเต็มให้เพิ่มขนาด disk ใน Compute Engine แล้ว reboot
 

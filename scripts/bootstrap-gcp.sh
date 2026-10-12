@@ -511,6 +511,9 @@ EOF
 
   VM ดึงโค้ดใหม่จาก branch $BRANCH ทุก $POLL_INTERVAL
 
+  ก่อนสร้างคอร์ส ต้องมีเครดิต Gemini API (Prepay) ของ project $PROJECT_ID
+  ตั้งค่าและเติมเครดิตที่ https://aistudio.google.com/billing (ดู DEPLOY.md หัวข้อที่ 1)
+
   ดู log การอัปเดต:
     gcloud compute ssh $VM_NAME --zone $ZONE --project $PROJECT_ID --tunnel-through-iap \\
       --command 'journalctl -u hai-nida-update -n 100 --no-pager'
