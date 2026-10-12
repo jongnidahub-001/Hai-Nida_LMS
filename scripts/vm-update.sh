@@ -67,6 +67,15 @@ main() {
 
   cd "$PROJECT_DIR"
   local br old_rev new_rev failed_rev=""
+
+  # รอบที่สอง: ถูก exec มาจากสคริปต์ฉบับเดิมหลัง git reset แล้ว ทำต่อจาก build
+  if [ -n "${HAI_NIDA_PREV_REV:-}" ]; then
+    old_rev="$HAI_NIDA_PREV_REV"
+    new_rev=$(git rev-parse HEAD)
+    unset HAI_NIDA_PREV_REV
+    deploy "$old_rev" "$new_rev"
+  fi
+
   br=$(branch)
   git fetch --quiet --prune origin "+refs/heads/$br:refs/remotes/origin/$br"
   old_rev=$(git rev-parse HEAD)
@@ -90,6 +99,13 @@ main() {
 
   git reset --quiet --hard "$new_rev"
 
+  # รันต่อด้วยสคริปต์ฉบับใหม่ การแก้สคริปต์นี้จะได้มีผลตั้งแต่รอบที่อัปเดต
+  HAI_NIDA_PREV_REV="$old_rev" exec "$PROJECT_DIR/scripts/vm-update.sh"
+}
+
+# build, health check และกลับไป old_rev ถ้าไม่ผ่าน (source อยู่ที่ new_rev แล้ว)
+deploy() {
+  local old_rev="$1" new_rev="$2"
   if start_stack "$old_rev" && health_check; then
     rm -f "$STATE_DIR/failed-rev"
     log "อัปเดตสำเร็จ $(git log -1 --format='%h %s')"
