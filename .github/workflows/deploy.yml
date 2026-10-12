@@ -1,3 +1,5 @@
+# deploy ระบบของเราเอง (VM hai-nida-prod) ผ่าน SSH เมื่อ push เข้า main
+# ระบบของลูกค้าไม่ใช้ workflow นี้ VM ของลูกค้าดึงโค้ดจาก branch release เอง (scripts/vm-update.sh)
 name: Deploy to VM
 
 on:
@@ -21,8 +23,16 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # ใช้ secrets ใน if ตรงๆ ไม่ได้ จึงส่งผ่าน env ข้ามงานเมื่อ repo นี้ไม่ได้ตั้ง VM_HOST
+    env:
+      HAS_VM_HOST: ${{ secrets.VM_HOST != '' }}
     steps:
+      - name: Skip when VM_HOST is not set
+        if: env.HAS_VM_HOST != 'true'
+        run: echo "ไม่ได้ตั้ง secret VM_HOST ข้ามการ deploy"
+
       - name: Deploy over SSH
+        if: env.HAS_VM_HOST == 'true'
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.VM_HOST }}
