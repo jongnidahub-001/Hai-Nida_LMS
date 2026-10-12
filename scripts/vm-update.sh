@@ -27,13 +27,14 @@ compose() {
 
 # ตรวจที่ตัว container โดยตรง ไม่ผ่าน Caddy เพราะเมื่อตั้ง SITE_ADDRESS เป็นโดเมน
 # Caddy จะไม่ตอบ localhost และใบรับรองอาจยังไม่พร้อมถ้ายังไม่ได้ชี้ DNS
+# ใช้ 127.0.0.1 ไม่ใช้ localhost เพราะ localhost ใน container resolve เป็น ::1 ก่อน แต่ nginx ฟังแค่ IPv4
 health_check() {
   local _
   for _ in $(seq 1 36); do
     if compose exec -T backend python -c \
-        "import urllib.request; urllib.request.urlopen('http://localhost:5000/openapi.json', timeout=5)" \
+        "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/openapi.json', timeout=5)" \
         >/dev/null 2>&1 &&
-      compose exec -T frontend wget -q -O /dev/null http://localhost/ >/dev/null 2>&1 &&
+      compose exec -T frontend wget -q -O /dev/null http://127.0.0.1/ >/dev/null 2>&1 &&
       [ -n "$(compose ps --status running -q caddy)" ]; then
       return 0
     fi

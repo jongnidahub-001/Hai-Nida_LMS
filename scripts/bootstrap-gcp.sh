@@ -442,14 +442,20 @@ wait_ready() {
   while [ $SECONDS -lt $deadline ]; do
     serial=$(gc compute instances get-serial-port-output "$VM_NAME" --zone "$ZONE" 2>/dev/null |
       grep -a 'startup-script' || true)
-    # ดูเฉพาะผลล่าสุด serial log อาจมีผลจากการ boot ครั้งก่อน
+    # เช็กเว็บจริงก่อน marker ใน serial log เพราะ timer อาจอัปเดตสำเร็จหลัง startup script รายงาน failed
+    # และ serial log อาจมีผลจากการ boot ครั้งก่อน
+    if site_up; then
+      info "ระบบพร้อมแล้ว"
+      return
+    fi
     state=$(grep -aoE 'hai-nida: (ready|failed)' <<<"$serial" | tail -n 1 || true)
     if [ "$state" = "hai-nida: failed" ]; then
       tail -n 30 <<<"$serial"
       die "ติดตั้งบน VM ไม่สำเร็จ ดู log ด้านบน แก้แล้วรันสคริปต์นี้ใหม่หรือ reboot VM"
     fi
-    if [ "$state" = "hai-nida: ready" ] && site_up; then
-      info "ระบบพร้อมแล้ว"
+    # เมื่อใช้โดเมนแต่ยังไม่ได้ชี้ DNS จะเช็กเว็บไม่ได้ ใช้ marker ของ startup script แทน
+    if [ "$state" = "hai-nida: ready" ] && [ -n "$DOMAIN" ]; then
+      info "ระบบบน VM พร้อมแล้ว (เว็บจะเปิดได้หลังชี้ DNS)"
       return
     fi
     local now
@@ -463,11 +469,15 @@ wait_ready() {
   die "รอเกิน 20 นาที ดู log ด้วย: gcloud compute instances get-serial-port-output $VM_NAME --zone $ZONE --project $PROJECT_ID"
 }
 
-# เมื่อใช้โดเมน ใบรับรองจะออกได้หลังชี้ DNS แล้วเท่านั้น จึงเช็กผ่าน IP เฉพาะกรณีไม่ใช้โดเมน
+# ไม่ใช้โดเมน: เช็กผ่าน IP ตรงๆ, ใช้โดเมน: เช็ก HTTPS โดยบังคับให้โดเมนชี้มาที่ IP นี้
+# (สำเร็จเมื่อชี้ DNS แล้วและ Caddy ออกใบรับรองได้)
 site_up() {
-  [ -n "$DOMAIN" ] && return 0
-  curl -fsS -o /dev/null --max-time 10 "http://$VM_IP/" &&
-    curl -fsS -o /dev/null --max-time 10 "http://$VM_IP/openapi.json"
+  if [ -z "$DOMAIN" ]; then
+    curl -fsS -o /dev/null --max-time 10 "http://$VM_IP/" &&
+      curl -fsS -o /dev/null --max-time 10 "http://$VM_IP/openapi.json"
+  else
+    curl -fsS -o /dev/null --max-time 10 --resolve "$DOMAIN:443:$VM_IP" "https://$DOMAIN/openapi.json"
+  fi
 }
 
 # ---------------------------------------------------------------------------
