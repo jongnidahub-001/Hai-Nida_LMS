@@ -31,7 +31,17 @@ cd Hai-Nida
 
 ระหว่างติดตั้ง สคริปต์จะแสดง public key ของ deploy key และหยุดรอ ให้ส่ง key นี้ให้ทีมพัฒนาเพิ่มเข้า repo (key นี้อ่าน repo ได้อย่างเดียว) เมื่อทีมพัฒนาแจ้งว่าเพิ่มแล้วให้กด Enter สคริปต์จะทำงานต่อ ถ้าปิดหน้าจอไปก่อน รันคำสั่งเดิมซ้ำได้ ส่วนที่สร้างแล้วจะถูกข้าม
 
-การติดตั้งใช้เวลาประมาณ 10 ถึง 20 นาที เมื่อเสร็จจะแสดง URL ของระบบ อีเมลและรหัสผ่านของ admin ให้บันทึกรหัสผ่านไว้ทันที เพราะจะแสดงเพียงครั้งเดียว แล้วเปลี่ยนรหัสหลัง login ครั้งแรก
+การติดตั้งใช้เวลาประมาณ 10 ถึง 20 นาที เมื่อเสร็จจะแสดง URL ของระบบ อีเมลและรหัสผ่านของ admin
+
+ระบบไม่มีรหัส admin ตั้งต้น bootstrap สุ่มรหัสให้และเก็บไว้ใน Secret Manager ส่วนอีเมลของ admin คือ `admin@example.com` หรือ `admin@<โดเมน>` ถ้าใส่ `--domain` (เปลี่ยนได้ด้วย `--admin-email`) ถ้าไม่ได้บันทึกรหัสไว้ตอนติดตั้ง ดูได้ภายหลังด้วยคำสั่งนี้
+
+```bash
+gcloud secrets versions access latest --secret hai-nida-admin-password --project <PROJECT_ID>
+```
+
+ดูอีเมลของ admin ได้จากบรรทัด `ADMIN_EMAIL=` ในผลของคำสั่ง `gcloud secrets versions access latest --secret hai-nida-app-config --project <PROJECT_ID>`
+
+หลัง login ครั้งแรกให้เปลี่ยนรหัสผ่านทางหน้าเว็บ รหัสใน Secret Manager ใช้สร้าง admin คนแรกเท่านั้น และจะไม่เปลี่ยนตามรหัสที่ตั้งใหม่
 
 สคริปต์จะสร้างทรัพยากรเหล่านี้ใน project
 
@@ -155,7 +165,7 @@ gcloud compute scp <ชื่อไฟล์> hai-nida:/tmp/ --zone asia-southea
 
 ถ้าเปิดเว็บไม่ได้ ให้ตรวจสถานะ container ด้วย `gcloud compute ssh ... --command 'cd /opt/hai-nida && sudo docker compose -f docker-compose.prod.yml ps'` และดู log ของ backend ด้วย `sudo docker compose -f docker-compose.prod.yml logs --tail=100 backend` (รันใน `/opt/hai-nida` บน VM)
 
-ถ้า login admin ไม่ได้หลังติดตั้ง ดูรหัสผ่านที่ใช้สร้าง admin ได้ด้วย `gcloud secrets versions access latest --secret hai-nida-admin-password --project <PROJECT_ID>` ถ้าเปลี่ยนรหัสผ่านทางเว็บแล้วลืม ให้ติดต่อทีมพัฒนา
+ถ้า login admin ไม่ได้หลังติดตั้ง ตรวจอีเมลและรหัสผ่านตามคำสั่งในหัวข้อที่ 2 ถ้าเปลี่ยนรหัสผ่านทางเว็บแล้วลืม ให้ติดต่อทีมพัฒนา
 
 ถ้า HTTPS ไม่ทำงานหลังตั้งโดเมน ให้ตรวจว่า DNS ชี้ไปที่ static IP แล้ว (`dig +short lms.example.com`) และไม่มี proxy ขวางที่ port 80 และ 443 ดู log ของ Caddy ด้วย `sudo docker compose -f docker-compose.prod.yml logs caddy`
 
