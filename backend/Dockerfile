@@ -25,4 +25,4 @@ RUN mkdir -p temp chroma_db
 EXPOSE 5000
 
 # Start the application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000", "--reload"] 
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"] 

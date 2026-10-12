@@ -3,6 +3,8 @@
 คู่มือการ Deploy ระบบ Hai-Nida LMS บน Google Cloud Platform ผ่าน **Command Line Interface (gcloud CLI)**
 
 > 📌 ดูเวอร์ชัน Web Console ได้ที่ [DEPLOYMENT_GUIDE_WEB.md](./DEPLOYMENT_GUIDE_WEB.md)
+>
+> หลังติดตั้งครั้งแรกแล้ว การ deploy ครั้งต่อไปทำอัตโนมัติผ่าน GitHub Actions ดู [DEPLOY_AUTOMATION.md](./DEPLOY_AUTOMATION.md)
 
 ## สารบัญ
 
@@ -12,7 +14,7 @@
 - [Step 1: สร้าง Google Cloud VM](#step-1-สร้าง-google-cloud-vm)
 - [Step 2: ติดตั้ง Docker และ Docker Compose](#step-2-ติดตั้ง-docker-และ-docker-compose)
 - [Step 3: ตั้งค่า Google Gemini API Key](#step-3-ตั้งค่า-google-gemini-api-key)
-- [Step 4: ตั้งค่า DNS](#step-4-ตั้งค่า-dns)
+- [Step 4: ตั้งค่า DNS (ไม่บังคับ)](#step-4-ตั้งค่า-dns-ไม่บังคับ)
 - [Step 5: เตรียม Production Files](#step-5-เตรียม-production-files)
 - [Step 6: Deploy ด้วย Docker Compose](#step-6-deploy-ด้วย-docker-compose)
 - [Step 7: ตรวจสอบและ Monitor](#step-7-ตรวจสอบและ-monitor)
@@ -67,7 +69,7 @@ Hai-Nida เป็นระบบ LMS (Learning Management System) ที่ใ�
          │  │Frontend│ │Backend │  │
          │  │(Nginx) │ │(FastAPI│  │
          │  │Port 80 │ │Port    │  │
-         │  │internal│ │5000)   │  │
+         │  │internal│ │5000 in)│  │
          │  └───────┘ └───┬────┘  │
          │                 │       │
          │                 ▼       │
@@ -155,20 +157,21 @@ gcloud compute firewall-rules create allow-https \
   --target-tags=https-server \
   --source-ranges=0.0.0.0/0
 
-# อนุญาต Backend API (Port 5000)
-gcloud compute firewall-rules create allow-backend-api \
-  --direction=INGRESS \
-  --priority=1000 \
-  --network=default \
-  --action=ALLOW \
-  --rules=tcp:5000 \
-  --target-tags=http-server \
-  --source-ranges=0.0.0.0/0
 ```
 
-> **หมายเหตุ**: Port 5000 จำเป็นเพราะ Frontend (React) เรียก Backend API โดยตรงจาก browser ของ user ผ่าน `REACT_APP_API_BASE_URL`
+ไม่ต้องเปิด port 5000 ของ backend เพราะ frontend เรียก API ผ่าน Caddy ที่ path `/api` บน port 80/443 เดียวกับหน้าเว็บ ถ้าเคยสร้าง rule ไว้ให้ลบ
+```bash
+gcloud compute firewall-rules delete allow-backend-api
+```
 
-### 1.4 จอง Static IP (Optional แต่แนะนำ)
+### 1.4 จอง Static IP
+
+ถ้า VM มี external IP อยู่แล้ว ใช้สคริปต์ใน repo แปลง IP เดิมเป็น static ได้โดยไม่ต้องหยุดเครื่องและ IP ไม่เปลี่ยน
+```bash
+./scripts/gcp-static-ip.sh hai-nida-prod asia-southeast1-b
+```
+
+หรือสร้าง IP ใหม่แล้ว assign ให้ VM (IP จะเปลี่ยน)
 
 ```bash
 # สร้าง Static IP
@@ -279,7 +282,9 @@ gcloud secrets versions access latest --secret="gemini-api-key"
 
 ---
 
-## Step 4: ตั้งค่า DNS
+## Step 4: ตั้งค่า DNS (ไม่บังคับ)
+
+ถ้ายังไม่ใช้โดเมน ข้าม step นี้ได้ เข้าใช้งานผ่าน `http://<static IP>`
 
 ตั้งค่า DNS A Record ที่ DNS provider ของคุณ:
 
@@ -315,45 +320,11 @@ git clone https://github.com/YOUR_USERNAME/Hai-Nida.git hai-nida
 cd hai-nida
 ```
 
-### 5.2 สร้าง Caddyfile
+### 5.2 Caddyfile
 
-```bash
-cat > Caddyfile << 'EOF'
-your-domain.com {
-    # Backend API - ต้องอยู่ก่อน frontend (more specific path)
-    handle /api/* {
-        reverse_proxy backend:5000
-    }
+ใช้ `Caddyfile` ที่อยู่ใน repo ไม่ต้องสร้างเอง ค่าเริ่มต้นรับ HTTP ที่ `:80` ผ่าน static IP
 
-    handle /docs {
-        reverse_proxy backend:5000
-    }
-
-    handle /openapi.json {
-        reverse_proxy backend:5000
-    }
-
-    handle /redoc {
-        reverse_proxy backend:5000
-    }
-
-    # Frontend - React SPA (catch-all)
-    handle {
-        reverse_proxy frontend:80
-    }
-
-    # Logging
-    log {
-        output file /data/access.log {
-            roll_size 10mb
-            roll_keep 5
-        }
-    }
-}
-EOF
-```
-
-> **สำคัญ**: แทนที่ `your-domain.com` ด้วย domain จริง — Caddy ออก SSL certificate จาก Let's Encrypt อัตโนมัติ
+ถ้าจะใช้โดเมน ให้แก้บรรทัด `:80 {` เป็นชื่อโดเมน (เช่น `hai-nida.com {`) แล้ว commit เข้า repo Caddy จะออกใบรับรอง HTTPS จาก Let's Encrypt อัตโนมัติ อย่าแก้ไฟล์นี้บน VM โดยตรง เพราะการ deploy อัตโนมัติจะเขียนทับด้วยไฟล์จาก repo
 
 ### 5.3 สร้าง Production Environment File
 
@@ -370,11 +341,8 @@ ADMIN_PASSWORD=change-this-strong-password
 CHROMA_HOST=chromadb
 CHROMA_PORT=8000
 
-# CORS - domain จริง
-CORS_ORIGINS=https://your-domain.com
-
-# ===== Frontend =====
-REACT_APP_API_BASE_URL=https://your-domain.com
+# CORS - เว้นว่างได้ เพราะ frontend กับ backend อยู่ origin เดียวกัน
+CORS_ORIGINS=
 EOF
 ```
 
@@ -385,85 +353,9 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 
 ### 5.4 Production docker-compose.prod.yml
 
-```yaml
-version: '3.8'
+ใช้ `docker-compose.prod.yml` ที่อยู่ใน repo มีเพียง Caddy ที่เปิด port `80`/`443` ออกภายนอก ส่วน frontend (80), backend (5000) และ chromadb (8000) ใช้ `expose` ภายใน Docker network
 
-services:
-  caddy:
-    image: caddy:2-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - frontend
-      - backend
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-      args:
-        - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
-    expose:
-      - "80"
-    depends_on:
-      - backend
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    environment:
-      - CHROMA_HOST=${CHROMA_HOST:-chromadb}
-      - CHROMA_PORT=${CHROMA_PORT:-8000}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - SECRET_KEY=${SECRET_KEY}
-      - CORS_ORIGINS=${CORS_ORIGINS}
-    depends_on:
-      - chromadb
-    volumes:
-      - ./backend/temp:/app/temp
-      - ./backend/chroma_db:/app/chroma_db
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  chromadb:
-    image: chromadb/chroma:1.0.15
-    expose:
-      - "8000"
-    volumes:
-      - chroma-data:/chroma/chroma
-    environment:
-      - CHROMA_DB_IMPL=chromadb.db.impl.sqlite.SqliteDB
-    networks:
-      - app-network
-    restart: unless-stopped
-
-networks:
-  app-network:
-    driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:
-  chroma-data:
-```
-
-> Backend ใช้ `ports: "5000:5000"` เพราะ React frontend เรียก API ตรงจาก browser ของ user ส่วน ChromaDB ใช้ `expose` เพราะถูกเรียกจาก backend ภายใน Docker network เท่านั้น
-
+frontend ไม่ต้องรับ `REACT_APP_API_BASE_URL` ตอน build เพราะเรียก API ด้วย path relative (`/api/...`) ส่วน backend อ่านค่าจาก `.env.prod` ผ่าน `env_file` จึงไม่ต้อง export ตัวแปรก่อนสั่ง compose
 
 ---
 
@@ -474,10 +366,7 @@ volumes:
 ```bash
 cd /opt/hai-nida
 
-# Load environment variables
-export $(cat .env.prod | grep -v '^#' | xargs)
-
-# Build และ start ทุก services
+# Build และ start ทุก services (backend อ่าน .env.prod เอง)
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
@@ -498,15 +387,13 @@ docker compose -f docker-compose.prod.yml logs -f caddy
 ### 6.3 ทดสอบ
 
 ```bash
-# ทดสอบ HTTPS
+# ทดสอบ Frontend และ Backend ผ่าน Caddy
+curl -I http://localhost/
+curl -I http://localhost/openapi.json
+
+# ถ้าตั้งโดเมนแล้ว
 curl -I http://your-domain.com    # ควร redirect 301 → https
 curl -I https://your-domain.com   # ควรได้ 200
-
-# ทดสอบ Backend API
-curl https://your-domain.com/api/health
-
-# ทดสอบ Frontend
-curl -s https://your-domain.com | head -20
 ```
 
 ### 6.4 Initialize Database (ครั้งแรก)
@@ -555,29 +442,23 @@ sudo bash add-google-cloud-ops-agent-repo.sh --also-install
 
 ### Update / Redeploy
 
+push เข้า branch `main` แล้ว GitHub Actions จะ backup ChromaDB, ดึงโค้ด, build และ start ให้อัตโนมัติ ดู [DEPLOY_AUTOMATION.md](./DEPLOY_AUTOMATION.md)
+
+ถ้าต้อง deploy เองบน VM
 ```bash
 cd /opt/hai-nida
+./backup-chromadb.sh
 git pull origin main
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
 ### Backup ChromaDB
 
+ใช้สคริปต์ใน repo ไฟล์ backup เก็บที่ `/opt/hai-nida/backups/chromadb/` และเก็บไว้ 7 ชุดล่าสุด
 ```bash
-# Backup script
-cat > /opt/hai-nida/backup.sh << 'EOF'
-#!/bin/bash
-BACKUP_DIR="/opt/hai-nida/backups"
-mkdir -p $BACKUP_DIR
-docker compose -f /opt/hai-nida/docker-compose.prod.yml exec -T chromadb \
-  tar -czf - /chroma/chroma > $BACKUP_DIR/chroma-$(date +%Y%m%d-%H%M).tar.gz
-find $BACKUP_DIR -name "chroma-*.tar.gz" -mtime +7 -delete
-echo "Backup completed: $(date)"
-EOF
-chmod +x /opt/hai-nida/backup.sh
-
-# ตั้ง cron - backup ทุกวัน 3:00 AM
-(crontab -l 2>/dev/null; echo "0 3 * * * /opt/hai-nida/backup.sh >> /var/log/hai-nida-backup.log 2>&1") | crontab -
+./backup-chromadb.sh                # backup ทันที
+./restore-chromadb.sh <ไฟล์ backup>  # restore
+./setup-backup-cron.sh              # ตั้ง cron ให้ backup ทุกวัน
 ```
 
 ### Scale Up VM
@@ -591,7 +472,7 @@ gcloud compute instances start hai-nida-prod --zone=asia-southeast1-b
 
 ### SSL Certificate
 
-Caddy renew อัตโนมัติ ไม่ต้องทำอะไร ตรวจสอบ:
+ใช้เฉพาะเมื่อตั้งโดเมนแล้ว Caddy renew อัตโนมัติ ไม่ต้องทำอะไร ตรวจสอบ:
 ```bash
 docker compose -f docker-compose.prod.yml exec caddy caddy list-certs
 ```
@@ -644,14 +525,14 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
 ## Security Best Practices
 
-1. **ห้าม commit** `.env.prod` / API keys ลง Git
+1. **ห้าม commit** `.env.prod`, `backend/.env` หรือ API keys ลง Git (อยู่ใน `.gitignore` แล้ว ใช้ `backend/.env.example` เป็นแม่แบบ) และตั้ง `SECRET_KEY` ใน `.env.prod` เสมอ
 2. ใช้ **Secret Manager** เก็บ production keys
-3. เปิดเฉพาะ port 80, 443, 5000, 22 — ไม่เปิด 8000 (ChromaDB) ออก internet
-4. ใช้ **IAP tunnel** สำหรับ SSH ที่ปลอดภัยกว่า:
+3. เปิดเฉพาะ port 80, 443, 22 ไม่เปิด 5000 (Backend) และ 8000 (ChromaDB) ออก internet
+4. การ deploy อัตโนมัติใช้ SSH key เฉพาะของ GitHub Actions จึงต้องปิด OS Login ที่ VM นี้ ส่วนการเข้าเครื่องด้วยตัวเองแนะนำ **IAP tunnel**:
    ```bash
    gcloud compute ssh hai-nida-prod --zone=asia-southeast1-b --tunnel-through-iap
    ```
-5. ตั้ง `CORS_ORIGINS=https://your-domain.com` (ไม่ใช่ `*`)
+5. frontend กับ backend อยู่ origin เดียวกัน ไม่ต้องพึ่ง CORS ถ้าต้องการจำกัดเพิ่ม ตั้ง `CORS_ORIGINS` เป็น URL ที่ผู้ใช้เข้าจริง
 6. จำกัด Gemini API key: IP restriction + API restriction ใน Cloud Console
 7. Update OS + Docker images สม่ำเสมอ
 

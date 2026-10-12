@@ -7,3 +7,13 @@ backend/.venv/
 # Robot Framework test results
 tests/results/
 !tests/results/.gitkeep
+# ChromaDB backups on the server
+backups/
+
+# Secrets: ห้าม commit ใช้ backend/.env.example เป็นแม่แบบ
+backend/.env
+backend/agent/**/.env
+.env.prod
+
+# VS Code Local History
+.lh/

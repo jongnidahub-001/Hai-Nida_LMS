@@ -38,3 +38,9 @@ temp/*.pdf
 .idea/
 *.swp
 *.swo 
+# Secrets ไม่ให้ติดไปใน image ส่งค่าผ่าน environment ของ compose แทน
+.env
+**/.env
+venv
+.venv
+chroma-data

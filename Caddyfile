@@ -1,0 +1,30 @@
+# ยังไม่ใช้โดเมน: รับ HTTP ที่ port 80 ผ่าน static IP
+# เมื่อมีโดเมนแล้ว ให้เปลี่ยน :80 เป็นชื่อโดเมน Caddy จะออกใบรับรอง HTTPS ให้อัตโนมัติ
+:80 {
+    handle /api/* {
+        reverse_proxy backend:5000
+    }
+
+    handle /docs {
+        reverse_proxy backend:5000
+    }
+
+    handle /openapi.json {
+        reverse_proxy backend:5000
+    }
+
+    handle /redoc {
+        reverse_proxy backend:5000
+    }
+
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    log {
+        output file /data/access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}

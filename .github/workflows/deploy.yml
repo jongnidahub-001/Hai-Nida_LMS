@@ -1,0 +1,77 @@
+name: Deploy to VM
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "**.docx"
+      - "docs/**"
+      - "images/**"
+      - "tests/**"
+      - "robot/**"
+  workflow_dispatch:
+
+# ไม่ให้ deploy ซ้อนกัน ถ้ามี push ใหม่ระหว่าง deploy จะรอคิว
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          command_timeout: 25m
+          script: |
+            set -euo pipefail
+            cd /opt/hai-nida
+            COMPOSE="docker compose -f docker-compose.prod.yml"
+
+            echo "== Backup ChromaDB =="
+            if [ -f backup-chromadb.sh ] && $COMPOSE ps --status running chromadb | grep chromadb >/dev/null; then
+              bash backup-chromadb.sh
+            else
+              echo "ยังไม่มีสคริปต์ backup หรือ ChromaDB ไม่ทำงาน ข้ามการ backup"
+            fi
+
+            echo "== Update source =="
+            OLD_REV=$(git rev-parse HEAD)
+            git fetch --prune origin main
+            git reset --hard origin/main
+            NEW_REV=$(git rev-parse HEAD)
+            echo "$OLD_REV -> $NEW_REV"
+
+            echo "== Build and start =="
+            $COMPOSE up -d --build --remove-orphans
+
+            # Caddyfile เป็น bind mount แบบไฟล์เดียว ต้อง restart ถึงจะเห็นไฟล์ใหม่
+            if git diff --name-only "$OLD_REV" "$NEW_REV" | grep -qx Caddyfile; then
+              echo "Caddyfile เปลี่ยน restart caddy"
+              $COMPOSE restart caddy
+            fi
+
+            echo "== Health check =="
+            for i in $(seq 1 30); do
+              if curl -fsS -o /dev/null http://localhost/ && curl -fsS -o /dev/null http://localhost/openapi.json; then
+                echo "OK"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Health check ไม่ผ่าน"
+                $COMPOSE ps
+                $COMPOSE logs --tail=100 backend
+                exit 1
+              fi
+              sleep 5
+            done
+
+            echo "== Cleanup =="
+            docker image prune -f
+            docker builder prune -f --filter "until=168h"

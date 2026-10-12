@@ -19,8 +19,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
-      args:
-        - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
     expose:
       - "80"
     depends_on:
@@ -33,14 +31,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
+    # ค่า secret (GOOGLE_API_KEY, SECRET_KEY, ADMIN_*, CORS_ORIGINS) อ่านจาก .env.prod บน server
+    env_file:
+      - .env.prod
     environment:
-      - CHROMA_HOST=${CHROMA_HOST:-chromadb}
-      - CHROMA_PORT=${CHROMA_PORT:-8000}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - SECRET_KEY=${SECRET_KEY}
-      - CORS_ORIGINS=${CORS_ORIGINS}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
     depends_on:
       - chromadb
     volumes:

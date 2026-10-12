@@ -62,7 +62,8 @@ app.add_middleware(
 # )
 
 # Configuration
-SECRET_KEY = 'your-secret-key-change-in-production'
+# อ่านจาก environment (.env.prod บน server) ถ้าไม่ตั้งจะใช้ค่า default สำหรับ dev เท่านั้น
+SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-change-in-production'
 
 #Database
 #db = DatabaseManager()

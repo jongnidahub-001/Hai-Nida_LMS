@@ -1,5 +1,7 @@
 # Production Deployment Guide
 
+> เอกสารนี้เป็นแนวทางเดิม การ deploy production ปัจจุบันดู [DEPLOYMENT_GUIDE_WEB.md](./DEPLOYMENT_GUIDE_WEB.md) และ [DEPLOY_AUTOMATION.md](./DEPLOY_AUTOMATION.md) frontend ไม่ต้องตั้ง `REACT_APP_API_BASE_URL` แล้ว
+
 ## Quick Start
 
 Choose the deployment scenario that fits your needs:
