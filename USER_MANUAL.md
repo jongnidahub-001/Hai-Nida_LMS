@@ -1,7 +1,7 @@
 # คู่มือการใช้งานระบบ Learning Management System (LMS) – Hi HR
 
-**เวอร์ชัน**: 5.0  
-**วันที่อัปเดตล่าสุด**: 19 กรกฎาคม 2026
+**เวอร์ชัน**: 5.1  
+**วันที่อัปเดตล่าสุด**: 12 ตุลาคม 2026
 
 ---
 
@@ -720,6 +720,8 @@
 - หากไม่เคยตั้งค่า role แยก ระบบจะใช้ model เดียวกันทุก role (backward compatible)
 - API Key ใช้ร่วมกันทุก role (key เดียว)
 - Status "Active" หมายถึง model นั้นตอบกลับได้ปกติ
+- ถ้ายังไม่เคยตั้งค่า model ทุก role ใช้ `gemini-3.5-flash` เป็นค่าตั้งต้น
+- Gemini API คิดเงินแบบเติมเครดิตล่วงหน้า (Prepay) ถ้าเครดิตหมด ระบบจะสร้างคอร์ส Quiz และ Chat ไม่ได้ และการบันทึก model จะแจ้งว่าเครดิตหมด (402) ให้ผู้ดูแล Google Cloud project เติมเครดิตที่ aistudio.google.com/billing
 
 ![หน้า Gemini API Settings](images/admin-settings.png)
 
@@ -769,6 +771,9 @@ A: ลบทุกอย่างที่เกี่ยวข้อง (บท
 
 **Q: เปลี่ยนรุ่น Gemini มีผลอย่างไร?**  
 A: มีผลกับการสร้างคอร์ส/Quiz/Chat ครั้งถัดไป คอร์สที่สร้างไปแล้วไม่เปลี่ยน สามารถตั้งค่า model แยกตาม role ได้ (Planner, Writer, Grader)
+
+**Q: สร้างคอร์สไม่ได้ และมีข้อความว่าเครดิตหมดหรือ 402?**  
+A: เครดิต Gemini API (Prepay) ของ project หมด ให้ผู้ดูแล Google Cloud project เติมเครดิตที่ aistudio.google.com/billing หลังเติมเครดิตแล้วใช้งานต่อได้ตามปกติ
 
 **Q: Token Usage คืออะไร?**  
 A: จำนวน token ที่ AI ใช้ในการประมวลผล แบ่งเป็น Prompt (input) และ Completion (output) ยิ่งใช้เยอะ ค่าใช้จ่าย API ยิ่งสูง ดูได้ในแท็บ Agent Logs และ Agent Diagram
