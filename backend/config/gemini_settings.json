@@ -1,7 +1,0 @@
-{
-  "model": "gemini-3.5-flash",
-  "api_key": "AQ.Ab8RN6IiNL2S0e-GHeaimLihX4jycE3Y1jWi278jDQmLO7xHVw",
-  "planner_model": "gemini-3.1-flash-lite",
-  "writer_model": "gemini-3.1-flash-lite",
-  "grader_model": "gemini-3.1-flash-lite"
-}

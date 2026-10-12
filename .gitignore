@@ -17,3 +17,22 @@ backend/agent/**/.env
 
 # VS Code Local History
 .lh/
+
+# ค่าที่ admin ตั้งผ่านหน้าเว็บ (มี API key) ใช้ backend/config/gemini_settings.example.json เป็นแม่แบบ
+backend/config/gemini_settings.json
+
+# ข้อมูลระบบและไฟล์ที่ผู้ใช้อัปโหลด ไม่เก็บใน repo
+backend/chroma-data/
+chroma-data/
+backend/chroma_db/
+backend/temp/*
+!backend/temp/.gitkeep
+
+# ไฟล์ที่เกิดระหว่างพัฒนา
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+backend/crew_output.json
+backend/agent/create_course/response.json
+backend/agent/create_course/test.ipynb

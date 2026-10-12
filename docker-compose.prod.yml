@@ -1,6 +1,13 @@
+# ตั้งชื่อ project ตายตัว ชื่อ volume (เช่น hai-nida_chroma-data) จะไม่ขึ้นกับชื่อโฟลเดอร์
+# backup-chromadb.sh และ restore-chromadb.sh อ้างชื่อนี้
+name: hai-nida
+
 services:
   caddy:
     image: caddy:2-alpine
+    # SITE_ADDRESS ใน .env.prod: ว่าง = HTTP ที่ port 80, ใส่โดเมน = HTTPS อัตโนมัติ
+    env_file:
+      - .env.prod
     ports:
       - "80:80"
       - "443:443"
@@ -44,6 +51,8 @@ services:
     volumes:
       - ./backend/temp:/app/temp
       - ./backend/chroma_db:/app/chroma_db
+      # ค่าที่ admin ตั้งผ่านหน้าเว็บ (gemini_settings.json) อยู่ข้าม deploy
+      - backend-config:/app/config
     networks:
       - app-network
     restart: unless-stopped
@@ -68,3 +77,4 @@ volumes:
   caddy_data:
   caddy_config:
   chroma-data:
+  backend-config:

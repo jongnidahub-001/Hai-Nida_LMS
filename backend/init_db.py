@@ -2,6 +2,9 @@
 """
 Database initialization script for ChromaDB with sample user data.
 Run this script to initialize the database with sample users.
+
+For local development only. It creates users with well-known passwords,
+so never run it on a production server.
 """
 
 from conn import db

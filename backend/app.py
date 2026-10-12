@@ -10,6 +10,7 @@ import jwt
 import datetime
 from conn import db
 import os
+import sys
 from agent.create_course.agent_autogen import CreateCourse
 from agent.create_quiz.agent_autogen import CreateCourse as CreateQuiz
 from langchain_community.document_loaders import PyPDFLoader
@@ -3284,16 +3285,20 @@ def background_task_worker():
     print("Background task worker stopped")
 
 def _ensure_admin_exists():
-    """Check if admin user exists on startup; create default admin if not"""
+    """Check if admin user exists on startup; create the first admin from ADMIN_* env if not"""
     try:
         admin_users = db.get_users_by_role("admin")
         if admin_users and len(admin_users) > 0:
             print("Admin user already exists")
             return
-        # Create default admin
+        # No fallback password: an unset ADMIN_PASSWORD must not create a guessable admin
+        admin_password = os.environ.get("ADMIN_PASSWORD", "")
+        if not admin_password:
+            print("ERROR: No admin user exists and ADMIN_PASSWORD is not set; admin user was not created",
+                  file=sys.stderr)
+            return
         admin_email = os.environ.get("ADMIN_EMAIL", "admin@admin.com")
         admin_username = os.environ.get("ADMIN_USERNAME", "admin")
-        admin_password = os.environ.get("ADMIN_PASSWORD", "admin")
         success, message = db.create_user(
             username=admin_username,
             email=admin_email,

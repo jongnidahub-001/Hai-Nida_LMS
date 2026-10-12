@@ -44,3 +44,5 @@ temp/*.pdf
 venv
 .venv
 chroma-data
+# ค่าที่ตั้งผ่านหน้า Admin เก็บใน volume backend-config ไม่ติดไปใน image
+config/gemini_settings.json
