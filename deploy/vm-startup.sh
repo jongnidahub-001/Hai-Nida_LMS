@@ -142,8 +142,9 @@ EOF
 
 install_backup_cron() {
   if ! as_app_user crontab -l 2>/dev/null | grep -q "hai-nida-chromadb-backup"; then
+    # VM ใช้เวลา UTC: 20:00 UTC = 03:00 เวลาไทย
     log "ติดตั้ง cron backup ChromaDB"
-    as_app_user bash "$APP_DIR/setup-backup-cron.sh" >/dev/null
+    as_app_user bash "$APP_DIR/setup-backup-cron.sh" "0 20 * * *" >/dev/null
   fi
 }
 
