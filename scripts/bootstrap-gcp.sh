@@ -5,10 +5,8 @@
 # ตัวเลือกทั้งหมดตั้งในไฟล์ deploy.env ได้ (ดู deploy.env.example) ค่าจาก command line มีผลก่อน
 # รันจาก Cloud Shell หรือเครื่องที่มี gcloud, git และ ssh-keygen ใน clone ของ repo นี้
 set -euo pipefail
-# ให้ error ใน $(...) หยุดสคริปต์ด้วย (bash 4.4 ขึ้นไป บน bash ของ macOS จะข้าม)
-shopt -s inherit_errexit 2>/dev/null || true
-
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib/common.sh
+. "$(dirname "$0")/lib/common.sh"
 
 usage() {
   cat <<'EOF'
@@ -30,22 +28,6 @@ usage() {
   --dry-run             พิมพ์คำสั่งที่จะรัน โดยไม่สร้างหรือแก้ทรัพยากร
   -h, --help            แสดงข้อความนี้
 EOF
-}
-
-# ---------------------------------------------------------------------------
-# ค่าตั้งต้น: deploy.env แล้วตามด้วย command line
-# ---------------------------------------------------------------------------
-PROJECT_ID="" REGION="asia-southeast1" ZONE="asia-southeast1-b" VM_NAME="hai-nida"
-MACHINE_TYPE="e2-medium" DISK_SIZE="30GB" NETWORK="default" DOMAIN="" GEMINI_KEY=""
-ADMIN_EMAIL="" REPO_URL="" BRANCH="release" POLL_INTERVAL="5min" DRY_RUN=false
-
-if [ -f "$REPO_ROOT/deploy.env" ]; then
-  # shellcheck disable=SC1091
-  . "$REPO_ROOT/deploy.env"
-fi
-
-need_value() {
-  [ $# -ge 2 ] && [ -n "$2" ] || { echo "ตัวเลือก $1 ต้องมีค่า" >&2; exit 2; }
 }
 
 while [ $# -gt 0 ]; do
@@ -72,71 +54,11 @@ done
 [ -n "$PROJECT_ID" ] || { usage >&2; exit 2; }
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@${DOMAIN:-example.com}}"
 ADMIN_USERNAME="admin"
-
-# ชื่อทรัพยากร
-SA_NAME="hai-nida-vm"
-SA_EMAIL="$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com"
-ADDRESS_NAME="$VM_NAME-ip"
-FW_WEB="$VM_NAME-allow-web"
-FW_SSH="$VM_NAME-allow-iap-ssh"
-SNAPSHOT_POLICY="$VM_NAME-daily-snapshot"
-API_KEY_NAME="hai-nida-gemini"
-SECRET_API_KEY="hai-nida-google-api-key"
-SECRET_SECRET_KEY="hai-nida-secret-key"
-SECRET_ADMIN_PASSWORD="hai-nida-admin-password"
-SECRET_APP_CONFIG="hai-nida-app-config"
-SECRET_DEPLOY_KEY="hai-nida-repo-deploy-key"
-ALL_SECRETS=("$SECRET_API_KEY" "$SECRET_SECRET_KEY" "$SECRET_ADMIN_PASSWORD" "$SECRET_APP_CONFIG" "$SECRET_DEPLOY_KEY")
 IAP_RANGE="35.235.240.0/20"
+resource_names
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
-
-# ---------------------------------------------------------------------------
-# helper
-# ---------------------------------------------------------------------------
-step() { printf '\n== %s ==\n' "$*"; }
-info() { printf '  %s\n' "$*"; }
-die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
-
-# รันคำสั่งที่สร้างหรือแก้ทรัพยากร ใน dry-run จะพิมพ์คำสั่งแทน (ออก stderr จะได้ไม่ปนกับค่าที่ capture)
-run() {
-  if [ "$DRY_RUN" = true ]; then
-    {
-      printf '  [dry-run]'
-      show_cmd "$@"
-    } >&2
-  else
-    "$@"
-  fi
-}
-
-# เหมือน run แต่ส่งค่าลับทาง stdin ของคำสั่ง ใน dry-run จะไม่พิมพ์ค่า
-run_with_stdin() {
-  local value="$1"
-  shift
-  if [ "$DRY_RUN" = true ]; then
-    {
-      printf '  [dry-run] <ค่าลับ> |'
-      show_cmd "$@"
-    } >&2
-  else
-    printf '%s' "$value" | "$@"
-  fi
-}
-
-gc() { gcloud --project "$PROJECT_ID" --quiet "$@"; }
-
-# คำสั่งสำหรับแสดงใน dry-run แปลง gc เป็นคำสั่ง gcloud เต็ม
-show_cmd() {
-  [ "$1" = gc ] && { shift; set -- gcloud --project "$PROJECT_ID" "$@"; }
-  printf ' %q' "$@"
-  printf '\n'
-}
-
-exists() { gc "$@" >/dev/null 2>&1; }
-
-random_password() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | cut -c1-20; }
 
 # ทำซ้ำสำหรับ IAM ที่เพิ่งสร้าง (มีช่วง propagate สั้นๆ)
 retry() {
@@ -158,10 +80,6 @@ to_ssh_url() {
   else
     echo "$url"
   fi
-}
-
-github_slug() {
-  [[ "$1" =~ github\.com[:/]([^/]+)/([^/]+)$ ]] && echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]%.git}"
 }
 
 # ---------------------------------------------------------------------------
@@ -204,7 +122,7 @@ preflight() {
 check_permissions() {
   local perms=(
     compute.instances.create compute.addresses.create compute.firewalls.create
-    compute.resourcePolicies.create iam.serviceAccounts.create
+    compute.resourcePolicies.create iam.serviceAccounts.create storage.buckets.create
     resourcemanager.projects.setIamPolicy serviceusage.services.enable
     secretmanager.secrets.create secretmanager.secrets.setIamPolicy
   )
@@ -237,7 +155,7 @@ check_permissions() {
 enable_apis() {
   step "เปิด API"
   run gc services enable compute.googleapis.com secretmanager.googleapis.com \
-    apikeys.googleapis.com generativelanguage.googleapis.com iap.googleapis.com
+    apikeys.googleapis.com generativelanguage.googleapis.com iap.googleapis.com storage.googleapis.com
 }
 
 # ---------------------------------------------------------------------------
@@ -388,16 +306,15 @@ setup_deploy_key() {
   # เพิ่ม deploy key เองได้ถ้าผู้รันเป็น admin ของ repo
   local slug
   slug=$(github_slug "$REPO_URL" || true)
-  if [ -n "$slug" ] && command -v gh >/dev/null &&
-    [ "$(gh api "repos/$slug" --jq '.permissions.admin' 2>/dev/null)" = "true" ]; then
+  if [ -n "$slug" ] && gh_is_admin "$slug"; then
     info "เพิ่ม deploy key ให้ $slug ด้วย gh"
-    gh repo deploy-key add "$key.pub" --repo "$slug" --title "hai-nida-vm ($PROJECT_ID)" >/dev/null
+    gh repo deploy-key add "$key.pub" --repo "$slug" --title "$DEPLOY_KEY_TITLE" >/dev/null
   else
     cat <<EOF
 
   ต้องให้เจ้าของ repo เพิ่ม deploy key นี้ก่อน VM จึงจะดึงโค้ดได้
   ที่ GitHub > ${slug:-repo} > Settings > Deploy keys > Add deploy key
-    Title: hai-nida-vm ($PROJECT_ID)
+    Title: $DEPLOY_KEY_TITLE
     Key:   $(cat "$key.pub")
     ไม่ต้องเลือก Allow write access
 
@@ -445,7 +362,7 @@ setup_service_account() {
 # ---------------------------------------------------------------------------
 setup_vm() {
   step "VM $VM_NAME"
-  local metadata="repo-url=$REPO_URL,repo-branch=$BRANCH,poll-interval=$POLL_INTERVAL"
+  local metadata="repo-url=$REPO_URL,repo-branch=$BRANCH,poll-interval=$POLL_INTERVAL,backup-bucket=$BACKUP_BUCKET"
   local startup="startup-script=$REPO_ROOT/deploy/vm-startup.sh"
 
   if exists compute instances describe "$VM_NAME" --zone "$ZONE"; then
@@ -488,7 +405,31 @@ setup_snapshots() {
 }
 
 # ---------------------------------------------------------------------------
-# 9. รอระบบพร้อม
+# 9. bucket สำหรับ backup ChromaDB นอก VM
+# ---------------------------------------------------------------------------
+setup_backup_bucket() {
+  step "bucket backup gs://$BACKUP_BUCKET"
+  if exists storage buckets describe "gs://$BACKUP_BUCKET"; then
+    info "มี bucket แล้ว"
+  else
+    run gc storage buckets create "gs://$BACKUP_BUCKET" --location "$REGION" \
+      --uniform-bucket-level-access --public-access-prevention
+  fi
+
+  # ลบไฟล์ backup ที่เก่ากว่า 30 วันอัตโนมัติ
+  local lifecycle="$TMP_DIR/lifecycle.json"
+  echo '{"rule":[{"action":{"type":"Delete"},"condition":{"age":30}}]}' >"$lifecycle"
+  run gc storage buckets update "gs://$BACKUP_BUCKET" --lifecycle-file "$lifecycle" >/dev/null
+
+  # VM สร้างไฟล์ได้อย่างเดียว ลบหรือเขียนทับ backup เดิมไม่ได้
+  retry run gc storage buckets add-iam-policy-binding "gs://$BACKUP_BUCKET" \
+    --member "serviceAccount:$SA_EMAIL" --role roles/storage.objectCreator >/dev/null ||
+    die "ให้สิทธิ์เขียน bucket ไม่สำเร็จ"
+  info "เก็บไฟล์ 30 วัน VM เพิ่มไฟล์ได้อย่างเดียว"
+}
+
+# ---------------------------------------------------------------------------
+# 10. รอระบบพร้อม
 # ---------------------------------------------------------------------------
 wait_ready() {
   step "รอระบบพร้อม (สูงสุด 20 นาที)"
@@ -530,7 +471,7 @@ site_up() {
 }
 
 # ---------------------------------------------------------------------------
-# 10. สรุป
+# 11. สรุป
 # ---------------------------------------------------------------------------
 summary() {
   local email="$ADMIN_EMAIL" url="http://$VM_IP"
@@ -574,6 +515,7 @@ main() {
   setup_secrets
   setup_deploy_key
   setup_service_account
+  setup_backup_bucket
   setup_vm
   setup_snapshots
   wait_ready

@@ -26,10 +26,12 @@ list_backups() {
     echo ""
     echo "Available backups:"
     echo "-------------------------------------------"
-    local i=1
-    for f in $(ls -1t "${BACKUP_DIR}"/chromadb_backup_*.tar.gz 2>/dev/null); do
-        local size=$(du -sh "$f" | cut -f1)
-        local name=$(basename "$f")
+    local i=1 f size name
+    # ชื่อไฟล์มาจาก backup-chromadb.sh (ไม่มีช่องว่าง) ใช้ ls เพื่อเรียงตามเวลา
+    # shellcheck disable=SC2012
+    ls -1t "${BACKUP_DIR}"/chromadb_backup_*.tar.gz 2>/dev/null | while read -r f; do
+        size=$(du -sh "$f" | cut -f1)
+        name=$(basename "$f")
         echo "  [$i] $name ($size)"
         i=$((i + 1))
     done
@@ -79,6 +81,7 @@ else
         error_exit "Invalid input: $choice"
     fi
 
+    # shellcheck disable=SC2012
     BACKUP_FILE=$(ls -1t "${BACKUP_DIR}"/chromadb_backup_*.tar.gz | sed -n "${choice}p")
 
     if [ -z "$BACKUP_FILE" ]; then
@@ -119,7 +122,9 @@ docker compose -f "$COMPOSE_FILE" up -d chromadb
 # Wait for ChromaDB to be ready
 log "Waiting for ChromaDB to be ready..."
 for i in $(seq 1 30); do
-    if docker compose -f "$COMPOSE_FILE" exec chromadb wget -q -O /dev/null http://localhost:8000/api/v1/heartbeat 2>/dev/null; then
+    # image ของ chroma ไม่มี wget/curl จึงเช็กจาก container backend (API v1 ถูกยกเลิกใน chroma 1.x)
+    if docker compose -f "$COMPOSE_FILE" exec -T backend python -c \
+        "import urllib.request; urllib.request.urlopen('http://chromadb:8000/api/v2/heartbeat', timeout=3)" 2>/dev/null; then
         log "✅ ChromaDB is healthy and ready!"
         echo ""
         echo "============================================"
