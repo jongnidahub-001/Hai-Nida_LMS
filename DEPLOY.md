@@ -82,11 +82,11 @@ gcloud secrets versions access latest --secret hai-nida-admin-password --project
 ./scripts/update-now.sh --project <PROJECT_ID>
 ```
 
-ดู log การอัปเดต
+ดูเวอร์ชันที่ VM ใช้อยู่และ log การอัปเดต (บรรทัดแรกคือ commit ปัจจุบัน ครั้งแรกที่ใช้ `gcloud compute ssh` ระบบจะสร้าง SSH key และถาม passphrase ให้กด Enter ผ่านได้)
 
 ```bash
 gcloud compute ssh hai-nida --zone asia-southeast1-b --project <PROJECT_ID> --tunnel-through-iap \
-  --command 'journalctl -u hai-nida-update -n 100 --no-pager'
+  --command 'sudo -u deploy git -C /opt/hai-nida log -1 --oneline; sudo journalctl -u hai-nida-update -n 100 --no-pager'
 ```
 
 ถ้าเวอร์ชันใหม่ตรวจไม่ผ่าน ระบบจะกลับไปใช้เวอร์ชันเดิม และจะไม่ลองเวอร์ชันนั้นซ้ำจนกว่าทีมพัฒนาจะปล่อย commit ใหม่ ให้แจ้งทีมพัฒนาพร้อม log ข้างต้น

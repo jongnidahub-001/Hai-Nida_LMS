@@ -516,7 +516,7 @@ EOF
 
   ดู log การอัปเดต:
     gcloud compute ssh $VM_NAME --zone $ZONE --project $PROJECT_ID --tunnel-through-iap \\
-      --command 'journalctl -u hai-nida-update -n 100 --no-pager'
+      --command 'sudo -u deploy git -C /opt/hai-nida log -1 --oneline; sudo journalctl -u hai-nida-update -n 100 --no-pager'
 EOF
 }
 
