@@ -9,7 +9,8 @@
 | `frontend/` | เว็บแอป React |
 | `backend/` | API ด้วย FastAPI และ agent ที่เรียก Gemini |
 | `scripts/`, `deploy/` | สคริปต์ติดตั้งและดูแลระบบบน Google Cloud |
-| `tests/` | ทดสอบ end-to-end ด้วย Robot Framework |
+| `e2e/` | ทดสอบ end-to-end ด้วย Playwright (ดู [e2e/README.md](e2e/README.md)) |
+| `tests/` | เก็บภาพหน้าจอประกอบคู่มือด้วย Robot Framework |
 
 ใน production ระบบรันด้วย `docker-compose.prod.yml` ซึ่งมี Caddy, frontend, backend และ ChromaDB บน VM เครื่องเดียว
 
