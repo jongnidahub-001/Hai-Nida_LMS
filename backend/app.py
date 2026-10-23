@@ -2295,8 +2295,9 @@ async def get_all_quiz_scores_admin(current_user: str = Depends(verify_admin)):
                 for score in quiz_scores:
                     user = db.get_user_by_id(score['user_id'])
                     if user:
+                        # quiz_score เก็บ score_id และ taken_at ไม่มี status เพราะมีเรคอร์ดเมื่อทำ quiz เสร็จแล้วเท่านั้น
                         score_data = {
-                            'quiz_score_id': score['quiz_score_id'],
+                            'quiz_score_id': score['score_id'],
                             'user_id': user['user_id'],
                             'username': user['username'],
                             'email': user['email'],
@@ -2304,8 +2305,8 @@ async def get_all_quiz_scores_admin(current_user: str = Depends(verify_admin)):
                             'course_name': course['course_name'],
                             'score': score['score'],
                             'total_points': score['total_points'],
-                            'status': score['status'],
-                            'attempted_at': score['attempted_at']
+                            'status': 'Completed',
+                            'attempted_at': score['taken_at']
                         }
                         all_scores.append(score_data)
         
@@ -2314,7 +2315,8 @@ async def get_all_quiz_scores_admin(current_user: str = Depends(verify_admin)):
         
         return {
             'success': True,
-            'quiz_scores': all_scores
+            'quiz_scores': all_scores,
+            'total': len(all_scores)
         }
     except Exception as e:
         raise HTTPException(

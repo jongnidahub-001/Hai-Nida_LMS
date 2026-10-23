@@ -12,7 +12,6 @@ function AdminAllQuiz() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -23,11 +22,11 @@ function AdminAllQuiz() {
     }
 
     fetchQuizScores();
-  }, [user, navigate, currentPage]);
+  }, [user, navigate]);
 
   const fetchQuizScores = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/quiz-scores?page=${currentPage}&limit=${itemsPerPage}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/quiz-scores`, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'application/json'
@@ -37,7 +36,6 @@ function AdminAllQuiz() {
       if (response.ok) {
         const data = await response.json();
         setQuizScores(data.quiz_scores || []);
-        setTotalPages(Math.ceil(data.total / itemsPerPage));
       } else {
         console.error('Failed to fetch quiz scores');
       }
@@ -52,6 +50,10 @@ function AdminAllQuiz() {
     score.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     score.course_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // backend ส่งคะแนนทั้งหมดมาครั้งเดียว จึงแบ่งหน้าจากผลที่ค้นหาแล้ว
+  const totalPages = Math.max(1, Math.ceil(filteredScores.length / itemsPerPage));
+  const pagedScores = filteredScores.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
@@ -72,7 +74,7 @@ function AdminAllQuiz() {
                   type="text"
                   placeholder="Search by username or course..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 />
                 <span className="icon is-small is-left">
                   <i className="fas fa-search"></i>
@@ -104,8 +106,8 @@ function AdminAllQuiz() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredScores.map((score) => (
-                      <tr key={score.id}>
+                    {pagedScores.map((score) => (
+                      <tr key={score.quiz_score_id}>
                         <td>{score.username}</td>
                         <td>{score.course_name}</td>
                         <td>
@@ -119,7 +121,7 @@ function AdminAllQuiz() {
                             {score.status}
                           </span>
                         </td>
-                        <td>{new Date(score.completed_at).toLocaleDateString()}</td>
+                        <td>{new Date(score.attempted_at).toLocaleDateString()}</td>
                         <td>
                           <button 
                             className="button is-small is-info"
